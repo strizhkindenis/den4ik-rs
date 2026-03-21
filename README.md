@@ -1,2 +1,2 @@
 # den4ik-rs
-Repo with my own creates and whatnot
+Repo with my own crates and whatnot
