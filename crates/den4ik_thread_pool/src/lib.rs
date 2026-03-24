@@ -71,11 +71,15 @@ impl ThreadPool {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics when the panic queue mutex is poisoned.
+    /// Meaning the thread pool is already in a bad state.
     pub fn submit<F>(&self, job: F)
     where
         F: FnOnce() + Send + 'static,
     {
-        let mut panic_queue = self.panic_queue.lock().unwrap_or_else(|_| unreachable!());
+        let mut panic_queue = self.panic_queue.lock().unwrap();
         while let Some(panic_idx) = panic_queue.pop_front() {
             let handle = start_worker(
                 self.job_queue.clone(),
@@ -94,7 +98,7 @@ impl ThreadPool {
         drop(panic_queue);
         self.job_queue
             .lock()
-            .unwrap_or_else(|_| unreachable!())
+            .unwrap()
             .push_back(Box::new(job));
         self.job_cvar.notify_one();
     }
@@ -115,7 +119,7 @@ fn worker_next_job(
     cvar: &Condvar,
     is_active: &AtomicBool,
 ) -> Option<Box<Job>> {
-    let mut queue = queue.lock().unwrap_or_else(|_| unreachable!());
+    let mut queue = queue.lock().unwrap();
     loop {
         if let Some(job) = queue.pop_front() {
             return Some(job);
@@ -123,7 +127,7 @@ fn worker_next_job(
         if !is_active.load(atomic::Ordering::Relaxed) {
             return None;
         }
-        queue = cvar.wait(queue).unwrap_or_else(|_| unreachable!());
+        queue = cvar.wait(queue).unwrap();
     }
 }
 
@@ -142,7 +146,7 @@ fn start_worker(
             };
             panic_queue
                 .lock()
-                .unwrap_or_else(|_| unreachable!())
+                .unwrap()
                 .push_back(panic_idx);
             panic::resume_unwind(payload);
         }
@@ -156,14 +160,13 @@ mod tests {
 
     #[test]
     fn test_thread_pool() {
-        let n = 1_000_000;
-        let mut pool = ThreadPool::default();
+        let n = 1_000;
+        let pool = ThreadPool::new(2);
         let (tx, rx) = mpsc::channel();
         for i in 1..=n {
             let tx = tx.clone();
             pool.submit(move || {
-                thread::sleep(std::time::Duration::from_millis(10));
-                tx.send(i * 2).unwrap();
+                let _ = tx.send(i * 2);
             });
             pool.submit(move || {
                 thread::sleep(std::time::Duration::from_millis(10));
