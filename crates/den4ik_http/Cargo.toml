@@ -2,3 +2,9 @@
 name = "den4ik_http"
 version = "0.1.0"
 edition = "2024"
+description = "A simple HTTP library written in Rust for the den4ik project."
+license = "MIT"
+repository = "https://github.com/denisstrizhkin/den4ik-rs"
+readme = "../../README.md"
+keywords = ["http", "network", "den4ik"]
+categories = ["network-programming", "web-programming::http-server"]

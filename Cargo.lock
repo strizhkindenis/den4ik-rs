@@ -5,3 +5,7 @@ version = 4
 [[package]]
 name = "den4ik_http"
 version = "0.1.0"
+
+[[package]]
+name = "den4ik_thread_pool"
+version = "0.1.0"
