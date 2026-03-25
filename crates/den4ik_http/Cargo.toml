@@ -8,3 +8,6 @@ repository = "https://github.com/denisstrizhkin/den4ik-rs"
 readme = "../../README.md"
 keywords = ["http", "network", "den4ik"]
 categories = ["network-programming", "web-programming::http-server"]
+
+[dependencies]
+den4ik_thread_pool = { path = "../den4ik_thread_pool" }
