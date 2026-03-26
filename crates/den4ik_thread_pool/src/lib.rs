@@ -11,6 +11,7 @@
 
 use std::{
     collections::VecDeque,
+    fmt,
     num::NonZeroUsize,
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
@@ -42,6 +43,18 @@ pub struct ThreadPool {
     job_cvar: Arc<Condvar>,
     panic_queue: Arc<Mutex<VecDeque<usize>>>,
     is_active: Arc<AtomicBool>,
+}
+
+impl fmt::Debug for ThreadPool {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ThreadPool")
+            .field("threads", &mutex_lock(&self.threads).len())
+            .field("job_queue", &mutex_lock(&self.job_queue).len())
+            .field("job_cvar", &self.job_cvar)
+            .field("is_active", &self.is_active)
+            .field("panic_queue", &mutex_lock(&self.panic_queue).len())
+            .finish()
+    }
 }
 
 impl Default for ThreadPool {
