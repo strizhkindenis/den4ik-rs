@@ -98,7 +98,7 @@ impl TryFrom<(u16, u32)> for Setting {
 #[derive(Debug)]
 pub struct RawFrame<'a> {
     pub length: u32,
-    pub _type: FrameType,
+    pub r#type: FrameType,
     pub flags: u8,
     pub sid: u32,
     pub data: &'a [u8],
@@ -106,7 +106,7 @@ pub struct RawFrame<'a> {
 
 impl RawFrame<'_> {
     fn into_settings(self) -> Result<Frame, FrameError> {
-        assert!(matches!(self._type, FrameType::Settings));
+        assert!(matches!(self.r#type, FrameType::Settings));
         if !(self.length as usize).is_multiple_of(Setting::SIZE) {
             return Err(FrameError::InvalidSettingsLength(self.length));
         }
@@ -133,11 +133,11 @@ impl RawFrame<'_> {
 
     fn into_frame(self, kind: FrameKind) -> Frame {
         if let FrameKind::Settings(_) = &kind {
-            assert!(matches!(self._type, FrameType::Settings))
+            assert!(matches!(self.r#type, FrameType::Settings))
         }
         Frame {
             length: self.length,
-            _type: self._type,
+            r#type: self.r#type,
             flags: self.flags,
             sid: self.sid,
             kind,
@@ -149,7 +149,7 @@ impl<'a> TryFrom<RawFrame<'a>> for Frame {
     type Error = FrameError;
 
     fn try_from(raw_frame: RawFrame<'a>) -> Result<Self, Self::Error> {
-        match raw_frame._type {
+        match raw_frame.r#type {
             FrameType::Settings => raw_frame.into_settings(),
             _ => raw_frame.into_other(),
         }
@@ -159,7 +159,7 @@ impl<'a> TryFrom<RawFrame<'a>> for Frame {
 #[derive(Debug)]
 pub struct Frame {
     length: u32,
-    _type: FrameType,
+    r#type: FrameType,
     flags: u8,
     sid: u32,
     kind: FrameKind,
@@ -184,7 +184,7 @@ impl TryFrom<&[u8]> for Frame {
         let (sid_bytes, buf) = buf
             .split_first_chunk::<FRAME_SID_SIZE>()
             .ok_or(FrameError::MissingSid)?;
-        let sid = u32::from_be_bytes(*sid_bytes);
+        let sid = u32::from_be_bytes(*sid_bytes) & 0x7FFF_FFFF;
         let length_usize = length
             .try_into()
             .expect("frame length (u32) should always fit into usize on modern architectures");
@@ -193,7 +193,7 @@ impl TryFrom<&[u8]> for Frame {
             .ok_or(FrameError::MissingPayload)?;
         let raw_rame = RawFrame {
             length,
-            _type,
+            r#type: _type,
             flags,
             sid,
             data,
@@ -203,28 +203,28 @@ impl TryFrom<&[u8]> for Frame {
 }
 
 impl Frame {
-    pub fn get_length(&self) -> u32 {
+    pub fn length(&self) -> u32 {
         self.length
     }
 
-    pub fn get_type(&self) -> FrameType {
-        self._type
+    pub fn r#type(&self) -> FrameType {
+        self.r#type
     }
 
-    pub fn get_flags(&self) -> u8 {
+    pub fn flags(&self) -> u8 {
         self.flags
     }
 
-    pub fn get_sid(&self) -> u32 {
+    pub fn sid(&self) -> u32 {
         self.sid
     }
 
-    pub fn get_kind(&self) -> &FrameKind {
+    pub fn kind(&self) -> &FrameKind {
         &self.kind
     }
 
-    pub fn get_size(&self) -> u32 {
-        self.get_length()
+    pub fn size(&self) -> u32 {
+        self.length()
             + (FRAME_LENGTH_SIZE + FRAME_TYPE_SIZE + FRAME_FLAGS_SIZE + FRAME_SID_SIZE) as u32
     }
 }

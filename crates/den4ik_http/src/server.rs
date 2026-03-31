@@ -28,15 +28,15 @@ fn handle_client(mut stream: TcpStream) {
     println!("peer: {peer} | PREFACE");
     println!("peer: {peer} | buf: {buf:?}");
     let frame = Frame::try_from(buf).unwrap();
-    let (_, buf) = buf.split_at(frame.get_size().try_into().unwrap());
+    let (_, buf) = buf.split_at(frame.size().try_into().unwrap());
     println!("peer: {peer} | frame: {frame:#?}");
     println!("peer: {peer} | buf: {buf:?}");
     let frame = Frame::try_from(buf).unwrap();
-    let (_, buf) = buf.split_at(frame.get_size().try_into().unwrap());
+    let (_, buf) = buf.split_at(frame.size().try_into().unwrap());
     println!("peer: {peer} | frame: {frame:#?}");
     println!("peer: {peer} | buf: {buf:?}");
     let frame = Frame::try_from(buf).unwrap();
-    let (_, buf) = buf.split_at(frame.get_size().try_into().unwrap());
+    let (_, buf) = buf.split_at(frame.size().try_into().unwrap());
     println!("peer: {peer} | frame: {frame:#?}");
     println!("peer: {peer} | buf: {buf:?}");
 }
