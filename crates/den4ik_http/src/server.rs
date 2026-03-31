@@ -6,10 +6,6 @@ use std::{
 use crate::frame::Frame;
 
 const PREFACE: &[u8; 24] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
-const FRAME_LENGTH_SIZE: usize = 3;
-const FRAME_TYPE_SIZE: usize = 1;
-const FRAME_FLAGS_SIZE: usize = 1;
-const FRAME_SID_SIZE: usize = 4;
 
 pub struct Http2Server {}
 

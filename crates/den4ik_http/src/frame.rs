@@ -1,4 +1,4 @@
-use std::fmt;
+use crate::errors::{FrameError, SettingParseError};
 
 const FRAME_LENGTH_SIZE: usize = 3;
 const FRAME_TYPE_SIZE: usize = 1;
@@ -47,12 +47,12 @@ pub enum FrameKind {
 
 #[derive(Debug)]
 pub struct FrameOther {
-    data: Vec<u8>,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug)]
 pub struct FrameSettings {
-    settings: Vec<Setting>,
+    pub settings: Vec<Setting>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,10 +64,8 @@ pub enum Setting {
     MaxHeaderListSize(u32),
 }
 
-#[derive(Debug)]
-pub enum SettingParseError {
-    UnknownId(u16),
-    InvalidValue(u16, u32),
+impl Setting {
+    const SIZE: usize = 6;
 }
 
 impl TryFrom<(u16, u32)> for Setting {
@@ -98,6 +96,67 @@ impl TryFrom<(u16, u32)> for Setting {
 }
 
 #[derive(Debug)]
+pub struct RawFrame<'a> {
+    pub length: u32,
+    pub _type: FrameType,
+    pub flags: u8,
+    pub sid: u32,
+    pub data: &'a [u8],
+}
+
+impl RawFrame<'_> {
+    fn into_settings(self) -> Result<Frame, FrameError> {
+        assert!(matches!(self._type, FrameType::Settings));
+        if !(self.length as usize).is_multiple_of(Setting::SIZE) {
+            return Err(FrameError::InvalidSettingsLength(self.length));
+        }
+        let (settings_chunks, _) = self.data.as_chunks::<{ Setting::SIZE }>();
+        let settings = settings_chunks
+            .iter()
+            .map(|chunk| {
+                let id = u16::from_be_bytes([chunk[0], chunk[1]]);
+                let val = u32::from_be_bytes([chunk[2], chunk[3], chunk[4], chunk[5]]);
+                Setting::try_from((id, val))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(FrameError::SettingParse)?;
+        let kind = FrameKind::Settings(FrameSettings { settings });
+        Ok(self.into_frame(kind))
+    }
+
+    fn into_other(self) -> Result<Frame, FrameError> {
+        let kind = FrameKind::Other(FrameOther {
+            data: self.data.to_vec(),
+        });
+        Ok(self.into_frame(kind))
+    }
+
+    fn into_frame(self, kind: FrameKind) -> Frame {
+        if let FrameKind::Settings(_) = &kind {
+            assert!(matches!(self._type, FrameType::Settings))
+        }
+        Frame {
+            length: self.length,
+            _type: self._type,
+            flags: self.flags,
+            sid: self.sid,
+            kind,
+        }
+    }
+}
+
+impl<'a> TryFrom<RawFrame<'a>> for Frame {
+    type Error = FrameError;
+
+    fn try_from(raw_frame: RawFrame<'a>) -> Result<Self, Self::Error> {
+        match raw_frame._type {
+            FrameType::Settings => raw_frame.into_settings(),
+            _ => raw_frame.into_other(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Frame {
     length: u32,
     _type: FrameType,
@@ -107,43 +166,39 @@ pub struct Frame {
 }
 
 impl TryFrom<&[u8]> for Frame {
-    type Error = ();
+    type Error = FrameError;
+
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let (length, buf) = value.split_at_checked(FRAME_LENGTH_SIZE).unwrap();
-        let length = u32::from_be_bytes([0, length[0], length[1], length[2]]);
-        let (_type, buf) = buf.split_at_checked(FRAME_TYPE_SIZE).unwrap();
-        let _type = FrameType::try_from(_type[0]).unwrap();
-        let (flags, buf) = buf.split_at_checked(FRAME_FLAGS_SIZE).unwrap();
-        let flags = u8::from_be_bytes([flags[0]]);
-        let (sid, buf) = buf.split_at_checked(FRAME_SID_SIZE).unwrap();
-        let sid = u32::from_be_bytes([sid[0], sid[1], sid[2], sid[3]]);
-        let (data, _) = buf.split_at_checked(length.try_into().unwrap()).unwrap();
-        let kind = match _type {
-            FrameType::Settings => {
-                assert_eq!(length % 6, 0);
-                let (settings, _) = data.as_chunks::<6>();
-                let settings = settings
-                    .iter()
-                    .map(|chunk| {
-                        let id = u16::from_be_bytes([chunk[0], chunk[1]]);
-                        let val = u32::from_be_bytes([chunk[2], chunk[3], chunk[4], chunk[5]]);
-                        Setting::try_from((id, val))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .unwrap();
-                FrameKind::Settings(FrameSettings { settings })
-            }
-            _ => FrameKind::Other(FrameOther {
-                data: data.to_vec(),
-            }),
-        };
-        Ok(Frame {
+        let (length_bytes, buf) = value
+            .split_first_chunk::<FRAME_LENGTH_SIZE>()
+            .ok_or(FrameError::MissingLength)?;
+        let length = u32::from_be_bytes([0, length_bytes[0], length_bytes[1], length_bytes[2]]);
+        let (type_bytes, buf) = buf
+            .split_first_chunk::<FRAME_TYPE_SIZE>()
+            .ok_or(FrameError::MissingType)?;
+        let _type = FrameType::try_from(type_bytes[0]).map_err(FrameError::UnknownType)?;
+        let (flags_bytes, buf) = buf
+            .split_first_chunk::<FRAME_FLAGS_SIZE>()
+            .ok_or(FrameError::MissingFlags)?;
+        let flags = flags_bytes[0];
+        let (sid_bytes, buf) = buf
+            .split_first_chunk::<FRAME_SID_SIZE>()
+            .ok_or(FrameError::MissingSid)?;
+        let sid = u32::from_be_bytes(*sid_bytes);
+        let length_usize = length
+            .try_into()
+            .expect("frame length (u32) should always fit into usize on modern architectures");
+        let (data, _) = buf
+            .split_at_checked(length_usize)
+            .ok_or(FrameError::MissingPayload)?;
+        let raw_rame = RawFrame {
             length,
             _type,
             flags,
             sid,
-            kind,
-        })
+            data,
+        };
+        raw_rame.try_into()
     }
 }
 
