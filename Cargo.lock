@@ -5,6 +5,9 @@ version = 4
 [[package]]
 name = "den4ik_http"
 version = "0.1.0"
+dependencies = [
+ "den4ik_thread_pool",
+]
 
 [[package]]
 name = "den4ik_thread_pool"
