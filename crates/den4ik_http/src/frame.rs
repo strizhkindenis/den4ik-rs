@@ -48,8 +48,21 @@ impl TryFrom<u8> for FrameType {
 #[derive(Debug)]
 pub enum FrameKind {
     Other(FrameOther),
+    Headers(FrameHeaders),
     Settings(FrameSettings),
     WindowUpdate(u32),
+}
+
+#[derive(Debug)]
+pub struct FrameHeaders {
+    is_end_stream: bool,
+    is_end_headers: bool,
+    is_padded: bool,
+    is_priority: bool,
+    is_exclusive: Option<bool>,
+    sid_dep: Option<u32>,
+    weight: Option<u8>,
+    pad: Option<u8>,
 }
 
 #[derive(Debug)]
@@ -143,6 +156,32 @@ impl<'a> RawFrame<'a> {
 
     pub fn r#type(&self) -> FrameType {
         self.header.r#type
+    }
+
+    fn into_headers(self) -> Result<Frame, FrameError> {
+        let Self { header, data } = self;
+        assert!(matches!(header.r#type, FrameType::Headers));
+        let is_end_stream = (header.flags & 0x01) != 0; //  0x01 | 0000 0001
+        let is_end_headers = (header.flags & 0x04) != 0; // 0x04 | 0000 0100
+        let is_padded = (header.flags & 0x08) != 0; //      0x08 | 0000 1000
+        let is_priority = (header.flags & 0x20) != 0; //    0x20 | 0010 0000
+        let (pad, data) = if is_padded {
+            let (pad_byte, data) = data.split_at_checked(std::mem::size_of::<u8>()).unwrap();
+            (Some(u8::from_be_bytes([pad_byte[0]])), data)
+        } else {
+            (None, data)
+        };
+        let (is_exclusive, sid_dep, data) = if is_priority {
+            let (sid_dep_bytes, data) = data.split_at_checked(std::mem::size_of::<u32>()).unwrap();
+            let sid_dep = u32::from_be_bytes(sid_dep_bytes.try_into().unwrap());
+            let is_exclusive = Some((sid_dep & 0x8000_000) != 0);
+            let sid_dep = Some(sid_dep & FRAME_RBIT_MASK);
+            (is_exclusive, sid_dep, data)
+        } else {
+            (None, None, data)
+        };
+        todo!()
+        // Ok(Frame::new(header, kind))
     }
 
     fn into_settings(self) -> Result<Frame, FrameError> {
