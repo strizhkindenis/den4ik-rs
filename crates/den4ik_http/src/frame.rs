@@ -9,7 +9,7 @@ const FRAME_SID_SIZE: usize = 4;
 pub const FRAME_HEADER_SIZE: usize =
     FRAME_LENGTH_SIZE + FRAME_TYPE_SIZE + FRAME_FLAGS_SIZE + FRAME_SID_SIZE;
 
-const FRAME_SID_MASK: u32 = 0x7FFF_FFFF;
+const FRAME_RBIT_MASK: u32 = 0x7FFF_FFFF;
 
 #[derive(Debug, Clone, Copy)]
 pub enum FrameType {
@@ -49,6 +49,7 @@ impl TryFrom<u8> for FrameType {
 pub enum FrameKind {
     Other(FrameOther),
     Settings(FrameSettings),
+    WindowUpdate(u32),
 }
 
 #[derive(Debug)]
@@ -119,7 +120,7 @@ impl TryFrom<&[u8; FRAME_HEADER_SIZE]> for FrameHeader {
         let r#type = FrameType::try_from(type_bytes[0]).map_err(FrameError::UnknownType)?;
         let (flags_bytes, sid_bytes) = buf.split_at(FRAME_FLAGS_SIZE);
         let flags = flags_bytes[0];
-        let sid = u32::from_be_bytes(array::from_fn(|i| sid_bytes[i])) & FRAME_SID_MASK;
+        let sid = u32::from_be_bytes(array::from_fn(|i| sid_bytes[i])) & FRAME_RBIT_MASK;
         Ok(FrameHeader {
             length,
             r#type,
@@ -164,6 +165,18 @@ impl<'a> RawFrame<'a> {
         Ok(Frame::new(header, kind))
     }
 
+    fn into_window_update(self) -> Result<Frame, FrameError> {
+        // TODO: make proper error checks
+        let Self { header, data } = self;
+        assert!(matches!(header.r#type, FrameType::WindowUpdate));
+        if (header.length as usize) != std::mem::size_of::<u32>() {
+            return Err(FrameError::InvalidSettingsLength(header.length));
+        }
+        let window_size = u32::from_be_bytes(array::from_fn(|i| data[i])) & FRAME_RBIT_MASK;
+        let kind = FrameKind::WindowUpdate(window_size);
+        Ok(Frame::new(header, kind))
+    }
+
     fn into_other(self) -> Result<Frame, FrameError> {
         let Self { header, data } = self;
         let kind = FrameKind::Other(FrameOther {
@@ -179,6 +192,7 @@ impl<'a> TryFrom<RawFrame<'a>> for Frame {
     fn try_from(raw_frame: RawFrame<'a>) -> Result<Self, Self::Error> {
         match raw_frame.r#type() {
             FrameType::Settings => raw_frame.into_settings(),
+            FrameType::WindowUpdate => raw_frame.into_window_update(),
             _ => raw_frame.into_other(),
         }
     }
@@ -192,8 +206,10 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(header: FrameHeader, kind: FrameKind) -> Self {
-        if let FrameKind::Settings(_) = &kind {
-            assert!(matches!(header.r#type, FrameType::Settings))
+        match &kind {
+            FrameKind::Settings(_) => assert!(matches!(header.r#type, FrameType::Settings)),
+            FrameKind::WindowUpdate(_) => assert!(matches!(header.r#type, FrameType::WindowUpdate)),
+            _ => (),
         }
         Self { header, kind }
     }

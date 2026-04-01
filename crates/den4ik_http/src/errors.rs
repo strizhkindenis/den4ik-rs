@@ -28,6 +28,7 @@ pub enum FrameError {
     UnknownType(u8),
     InvalidLength,
     InvalidSettingsLength(u32),
+    InvalidWindowUpdateLength(u32),
     SettingParse(SettingParseError),
 }
 
@@ -49,6 +50,9 @@ impl fmt::Display for FrameError {
             FrameError::UnknownType(t) => write!(f, "unknown frame type: {t:#x}"),
             FrameError::InvalidLength => write!(f, "invalid frame length"),
             FrameError::InvalidSettingsLength(l) => write!(f, "invalid settings frame length: {l}"),
+            FrameError::InvalidWindowUpdateLength(l) => {
+                write!(f, "invalid window update frame length: {l}")
+            }
             FrameError::SettingParse(e) => write!(f, "setting parse error: {e}"),
         }
     }
