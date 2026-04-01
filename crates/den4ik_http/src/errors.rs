@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::frame::FRAME_HEADER_SIZE;
+
 #[derive(Debug)]
 pub enum SettingParseError {
     UnknownId(u16),
@@ -21,11 +23,8 @@ impl std::error::Error for SettingParseError {}
 
 #[derive(Debug)]
 pub enum FrameError {
-    MissingLength,
-    MissingType,
-    MissingFlags,
-    MissingSid,
-    MissingPayload,
+    InvalidHeaderSize(u8),
+    InvalidPayloadSize(u8, u8),
     UnknownType(u8),
     InvalidLength,
     InvalidSettingsLength(u32),
@@ -35,13 +34,18 @@ pub enum FrameError {
 impl fmt::Display for FrameError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FrameError::MissingLength => write!(f, "incomplete frame data: missing length"),
-            FrameError::MissingType => write!(f, "incomplete frame data: missing type"),
-            FrameError::MissingFlags => write!(f, "incomplete frame data: missing flags"),
-            FrameError::MissingSid => {
-                write!(f, "incomplete frame data: missing stream identification")
+            FrameError::InvalidHeaderSize(got) => {
+                write!(
+                    f,
+                    "invalid frame header size - expected: {FRAME_HEADER_SIZE}, got: {got}"
+                )
             }
-            FrameError::MissingPayload => write!(f, "incomplete frame data: missing payload"),
+            FrameError::InvalidPayloadSize(expected, got) => {
+                write!(
+                    f,
+                    "invalid frame data size - expected: {expected}, got: {got}"
+                )
+            }
             FrameError::UnknownType(t) => write!(f, "unknown frame type: {t:#x}"),
             FrameError::InvalidLength => write!(f, "invalid frame length"),
             FrameError::InvalidSettingsLength(l) => write!(f, "invalid settings frame length: {l}"),

@@ -3,7 +3,7 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use crate::frame::Frame;
+use crate::frame::{FRAME_HEADER_SIZE, Frame, FrameHeader, RawFrame};
 
 const PREFACE: &[u8; 24] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -20,25 +20,28 @@ impl Http2Server {
 
 fn handle_client(mut stream: TcpStream) {
     let peer = stream.peer_addr().unwrap();
-    let mut mbuf: Vec<u8> = vec![0; 1024];
-    let n = stream.read(&mut mbuf).unwrap();
-    let buf = &mbuf[..n];
-    let (preface, buf) = buf.split_at_checked(PREFACE.len()).unwrap();
-    assert_eq!(preface, PREFACE);
+    let mut frame_header_buf = [0; FRAME_HEADER_SIZE];
+    let mut buf: Vec<u8> = vec![0; 1024];
+    stream.read_exact(&mut buf[..PREFACE.len()]).unwrap();
+    assert_eq!(&buf[..PREFACE.len()], PREFACE);
     println!("peer: {peer} | PREFACE");
-    println!("peer: {peer} | buf: {buf:?}");
-    let frame = Frame::try_from(buf).unwrap();
-    let (_, buf) = buf.split_at(frame.size().try_into().unwrap());
-    println!("peer: {peer} | frame: {frame:#?}");
-    println!("peer: {peer} | buf: {buf:?}");
-    let frame = Frame::try_from(buf).unwrap();
-    let (_, buf) = buf.split_at(frame.size().try_into().unwrap());
-    println!("peer: {peer} | frame: {frame:#?}");
-    println!("peer: {peer} | buf: {buf:?}");
-    let frame = Frame::try_from(buf).unwrap();
-    let (_, buf) = buf.split_at(frame.size().try_into().unwrap());
-    println!("peer: {peer} | frame: {frame:#?}");
-    println!("peer: {peer} | buf: {buf:?}");
+    loop {
+        let frame = read_frame(&mut stream, &mut frame_header_buf, &mut buf);
+        println!("peer: {peer} | {frame:#?}");
+    }
+}
+
+fn read_frame(
+    stream: &mut TcpStream,
+    header_buf: &mut [u8; FRAME_HEADER_SIZE],
+    data_buf: &mut [u8],
+) -> Frame {
+    stream.read_exact(header_buf).unwrap();
+    let header: FrameHeader = (header_buf as &[u8; 9]).try_into().unwrap();
+    let data = &mut data_buf[..header.length.try_into().unwrap()];
+    stream.read_exact(data).unwrap();
+    let raw_frame = RawFrame::new(header, data);
+    raw_frame.try_into().unwrap()
 }
 
 #[cfg(test)]
