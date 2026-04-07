@@ -46,62 +46,119 @@ pub trait Float:
     const NEG_INFINITY: Self;
     const RADIX: u32;
 
+    #[must_use]
     fn abs(self) -> Self;
+    #[must_use]
     fn acos(self) -> Self;
+    #[must_use]
     fn acosh(self) -> Self;
+    #[must_use]
     fn asin(self) -> Self;
+    #[must_use]
     fn asinh(self) -> Self;
+    #[must_use]
     fn atan(self) -> Self;
+    #[must_use]
     fn atan2(self, other: Self) -> Self;
+    #[must_use]
     fn atanh(self) -> Self;
+    #[must_use]
     fn cbrt(self) -> Self;
+    #[must_use]
     fn ceil(self) -> Self;
+    #[must_use]
     fn clamp(self, min: Self, max: Self) -> Self;
+    #[must_use]
     fn classify(self) -> FpCategory;
+    #[must_use]
     fn copysign(self, sign: Self) -> Self;
+    #[must_use]
     fn cos(self) -> Self;
+    #[must_use]
     fn cosh(self) -> Self;
+    #[must_use]
     fn div_euclid(self, rhs: Self) -> Self;
+    #[must_use]
     fn exp(self) -> Self;
+    #[must_use]
     fn exp2(self) -> Self;
+    #[must_use]
     fn exp_m1(self) -> Self;
+    #[must_use]
     fn floor(self) -> Self;
+    #[must_use]
     fn fract(self) -> Self;
+    #[must_use]
     fn hypot(self, other: Self) -> Self;
+    #[must_use]
     fn is_finite(self) -> bool;
+    #[must_use]
     fn is_infinite(self) -> bool;
+    #[must_use]
     fn is_nan(self) -> bool;
+    #[must_use]
     fn is_normal(self) -> bool;
+    #[must_use]
     fn is_sign_negative(self) -> bool;
+    #[must_use]
     fn is_sign_positive(self) -> bool;
+    #[must_use]
     fn is_subnormal(self) -> bool;
+    #[must_use]
     fn ln(self) -> Self;
+    #[must_use]
     fn ln_1p(self) -> Self;
+    #[must_use]
     fn log(self, base: Self) -> Self;
+    #[must_use]
     fn log2(self) -> Self;
+    #[must_use]
     fn log10(self) -> Self;
+    #[must_use]
     fn max(self, other: Self) -> Self;
+    #[must_use]
     fn midpoint(self, other: Self) -> Self;
+    #[must_use]
     fn min(self, other: Self) -> Self;
+    #[must_use]
     fn mul_add(self, a: Self, b: Self) -> Self;
+    #[must_use]
     fn next_down(self) -> Self;
+    #[must_use]
     fn next_up(self) -> Self;
+    #[must_use]
     fn powf(self, n: Self) -> Self;
+    #[must_use]
     fn powi(self, n: i32) -> Self;
+    #[must_use]
     fn recip(self) -> Self;
+    #[must_use]
     fn rem_euclid(self, rhs: Self) -> Self;
+    #[must_use]
     fn round(self) -> Self;
+    #[must_use]
     fn round_ties_even(self) -> Self;
+    #[must_use]
     fn signum(self) -> Self;
+    #[must_use]
     fn sin(self) -> Self;
+    #[must_use]
     fn sin_cos(self) -> (Self, Self);
+    #[must_use]
     fn sinh(self) -> Self;
+    #[must_use]
     fn sqrt(self) -> Self;
+    #[must_use]
     fn tan(self) -> Self;
+    #[must_use]
     fn tanh(self) -> Self;
+    #[must_use]
     fn to_degrees(self) -> Self;
+    #[must_use]
     fn to_radians(self) -> Self;
+    #[must_use]
     fn total_cmp(&self, other: &Self) -> Ordering;
+    #[must_use]
     fn trunc(self) -> Self;
 }
 
