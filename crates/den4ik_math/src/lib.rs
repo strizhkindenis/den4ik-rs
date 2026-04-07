@@ -9,5 +9,6 @@
 )]
 
 mod float;
+pub mod mat;
 
 pub use float::Float;
