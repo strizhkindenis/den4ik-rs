@@ -88,6 +88,12 @@ impl<T> Mat<T> {
     }
 }
 
+impl<T: Clone> Clone for Mat<T> {
+    fn clone(&self) -> Self {
+        Self::from_parts(self.data.clone(), self.dims)
+    }
+}
+
 impl<T: Clone> Mat<T> {
     pub fn full(dims: Dims, val: T) -> Self {
         let data = vec![val; dims.size()].into_boxed_slice();

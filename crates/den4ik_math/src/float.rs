@@ -6,6 +6,8 @@ use std::{
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign},
 };
 
+use crate::traits::{One, Zero};
+
 pub trait Float:
     Sized
     + Copy
@@ -46,51 +48,6 @@ pub trait Float:
     const NEG_INFINITY: Self;
     const RADIX: u32;
 
-    #[must_use]
-    fn abs(self) -> Self;
-    #[must_use]
-    fn acos(self) -> Self;
-    #[must_use]
-    fn acosh(self) -> Self;
-    #[must_use]
-    fn asin(self) -> Self;
-    #[must_use]
-    fn asinh(self) -> Self;
-    #[must_use]
-    fn atan(self) -> Self;
-    #[must_use]
-    fn atan2(self, other: Self) -> Self;
-    #[must_use]
-    fn atanh(self) -> Self;
-    #[must_use]
-    fn cbrt(self) -> Self;
-    #[must_use]
-    fn ceil(self) -> Self;
-    #[must_use]
-    fn clamp(self, min: Self, max: Self) -> Self;
-    #[must_use]
-    fn classify(self) -> FpCategory;
-    #[must_use]
-    fn copysign(self, sign: Self) -> Self;
-    #[must_use]
-    fn cos(self) -> Self;
-    #[must_use]
-    fn cosh(self) -> Self;
-    #[must_use]
-    fn div_euclid(self, rhs: Self) -> Self;
-    #[must_use]
-    fn exp(self) -> Self;
-    #[must_use]
-    fn exp2(self) -> Self;
-    #[must_use]
-    fn exp_m1(self) -> Self;
-    #[must_use]
-    fn floor(self) -> Self;
-    #[must_use]
-    fn fract(self) -> Self;
-    #[must_use]
-    fn hypot(self, other: Self) -> Self;
-    #[must_use]
     fn is_finite(self) -> bool;
     #[must_use]
     fn is_infinite(self) -> bool;
@@ -105,57 +62,11 @@ pub trait Float:
     #[must_use]
     fn is_subnormal(self) -> bool;
     #[must_use]
-    fn ln(self) -> Self;
-    #[must_use]
-    fn ln_1p(self) -> Self;
-    #[must_use]
-    fn log(self, base: Self) -> Self;
-    #[must_use]
-    fn log2(self) -> Self;
-    #[must_use]
-    fn log10(self) -> Self;
-    #[must_use]
-    fn max(self, other: Self) -> Self;
-    #[must_use]
-    fn midpoint(self, other: Self) -> Self;
-    #[must_use]
     fn min(self, other: Self) -> Self;
-    #[must_use]
-    fn mul_add(self, a: Self, b: Self) -> Self;
-    #[must_use]
-    fn next_down(self) -> Self;
-    #[must_use]
-    fn next_up(self) -> Self;
-    #[must_use]
-    fn powf(self, n: Self) -> Self;
-    #[must_use]
-    fn powi(self, n: i32) -> Self;
-    #[must_use]
-    fn recip(self) -> Self;
-    #[must_use]
-    fn rem_euclid(self, rhs: Self) -> Self;
-    #[must_use]
-    fn round(self) -> Self;
     #[must_use]
     fn round_ties_even(self) -> Self;
     #[must_use]
     fn signum(self) -> Self;
-    #[must_use]
-    fn sin(self) -> Self;
-    #[must_use]
-    fn sin_cos(self) -> (Self, Self);
-    #[must_use]
-    fn sinh(self) -> Self;
-    #[must_use]
-    fn sqrt(self) -> Self;
-    #[must_use]
-    fn tan(self) -> Self;
-    #[must_use]
-    fn tanh(self) -> Self;
-    #[must_use]
-    fn to_degrees(self) -> Self;
-    #[must_use]
-    fn to_radians(self) -> Self;
     #[must_use]
     fn total_cmp(&self, other: &Self) -> Ordering;
     #[must_use]
@@ -181,46 +92,6 @@ macro_rules! impl_float {
             const RADIX: u32 = <$t>::RADIX;
 
             #[inline]
-            fn abs(self) -> Self {
-                self.abs()
-            }
-            #[inline]
-            fn acos(self) -> Self {
-                self.acos()
-            }
-            #[inline]
-            fn acosh(self) -> Self {
-                self.acosh()
-            }
-            #[inline]
-            fn asin(self) -> Self {
-                self.asin()
-            }
-            #[inline]
-            fn asinh(self) -> Self {
-                self.asinh()
-            }
-            #[inline]
-            fn atan(self) -> Self {
-                self.atan()
-            }
-            #[inline]
-            fn atan2(self, other: Self) -> Self {
-                self.atan2(other)
-            }
-            #[inline]
-            fn atanh(self) -> Self {
-                self.atanh()
-            }
-            #[inline]
-            fn cbrt(self) -> Self {
-                self.cbrt()
-            }
-            #[inline]
-            fn ceil(self) -> Self {
-                self.ceil()
-            }
-            #[inline]
             fn clamp(self, min: Self, max: Self) -> Self {
                 self.clamp(min, max)
             }
@@ -231,42 +102,6 @@ macro_rules! impl_float {
             #[inline]
             fn copysign(self, sign: Self) -> Self {
                 self.copysign(sign)
-            }
-            #[inline]
-            fn cos(self) -> Self {
-                self.cos()
-            }
-            #[inline]
-            fn cosh(self) -> Self {
-                self.cosh()
-            }
-            #[inline]
-            fn div_euclid(self, rhs: Self) -> Self {
-                self.div_euclid(rhs)
-            }
-            #[inline]
-            fn exp(self) -> Self {
-                self.exp()
-            }
-            #[inline]
-            fn exp2(self) -> Self {
-                self.exp2()
-            }
-            #[inline]
-            fn exp_m1(self) -> Self {
-                self.exp_m1()
-            }
-            #[inline]
-            fn floor(self) -> Self {
-                self.floor()
-            }
-            #[inline]
-            fn fract(self) -> Self {
-                self.fract()
-            }
-            #[inline]
-            fn hypot(self, other: Self) -> Self {
-                self.hypot(other)
             }
             #[inline]
             fn is_finite(self) -> bool {
@@ -297,40 +132,12 @@ macro_rules! impl_float {
                 self.is_subnormal()
             }
             #[inline]
-            fn ln(self) -> Self {
-                self.ln()
-            }
-            #[inline]
-            fn ln_1p(self) -> Self {
-                self.ln_1p()
-            }
-            #[inline]
-            fn log(self, base: Self) -> Self {
-                self.log(base)
-            }
-            #[inline]
-            fn log2(self) -> Self {
-                self.log2()
-            }
-            #[inline]
-            fn log10(self) -> Self {
-                self.log10()
-            }
-            #[inline]
             fn max(self, other: Self) -> Self {
                 self.max(other)
             }
             #[inline]
-            fn midpoint(self, other: Self) -> Self {
-                self.midpoint(other)
-            }
-            #[inline]
             fn min(self, other: Self) -> Self {
                 self.min(other)
-            }
-            #[inline]
-            fn mul_add(self, a: Self, b: Self) -> Self {
-                self.mul_add(a, b)
             }
             #[inline]
             fn next_down(self) -> Self {
@@ -349,18 +156,6 @@ macro_rules! impl_float {
                 self.powi(n)
             }
             #[inline]
-            fn recip(self) -> Self {
-                self.recip()
-            }
-            #[inline]
-            fn rem_euclid(self, rhs: Self) -> Self {
-                self.rem_euclid(rhs)
-            }
-            #[inline]
-            fn round(self) -> Self {
-                self.round()
-            }
-            #[inline]
             fn round_ties_even(self) -> Self {
                 self.round_ties_even()
             }
@@ -369,36 +164,8 @@ macro_rules! impl_float {
                 self.signum()
             }
             #[inline]
-            fn sin(self) -> Self {
-                self.sin()
-            }
-            #[inline]
             fn sin_cos(self) -> (Self, Self) {
                 self.sin_cos()
-            }
-            #[inline]
-            fn sinh(self) -> Self {
-                self.sinh()
-            }
-            #[inline]
-            fn sqrt(self) -> Self {
-                self.sqrt()
-            }
-            #[inline]
-            fn tan(self) -> Self {
-                self.tan()
-            }
-            #[inline]
-            fn tanh(self) -> Self {
-                self.tanh()
-            }
-            #[inline]
-            fn to_degrees(self) -> Self {
-                self.to_degrees()
-            }
-            #[inline]
-            fn to_radians(self) -> Self {
-                self.to_radians()
             }
             #[inline]
             fn total_cmp(&self, other: &Self) -> Ordering {
@@ -464,25 +231,339 @@ macro_rules! impl_float_consts {
     };
 }
 
-pub trait Zero {
-    fn zero() -> Self;
+pub trait FloatOps {
+    #[inline]
+    fn abs(self) -> Self {
+        self.abs()
+    }
+    #[inline]
+    fn acos(self) -> Self {
+        self.acos()
+    }
+    #[inline]
+    fn acosh(self) -> Self {
+        self.acosh()
+    }
+    #[inline]
+    fn asin(self) -> Self {
+        self.asin()
+    }
+    #[inline]
+    fn asinh(self) -> Self {
+        self.asinh()
+    }
+    #[inline]
+    fn atan(self) -> Self {
+        self.atan()
+    }
+    #[inline]
+    fn atan2(self, other: Self) -> Self {
+        self.atan2(other)
+    }
+    #[inline]
+    fn atanh(self) -> Self {
+        self.atanh()
+    }
+    #[inline]
+    fn cbrt(self) -> Self {
+        self.cbrt()
+    }
+    #[inline]
+    fn ceil(self) -> Self {
+        self.ceil()
+    }
+    #[inline]
+    fn cos(self) -> Self {
+        self.cos()
+    }
+    #[inline]
+    fn cosh(self) -> Self {
+        self.cosh()
+    }
+    #[inline]
+    fn div_euclid(self, rhs: Self) -> Self {
+        self.div_euclid(rhs)
+    }
+    #[inline]
+    fn exp(self) -> Self {
+        self.exp()
+    }
+    #[inline]
+    fn exp2(self) -> Self {
+        self.exp2()
+    }
+    #[inline]
+    fn exp_m1(self) -> Self {
+        self.exp_m1()
+    }
+    #[inline]
+    fn floor(self) -> Self {
+        self.floor()
+    }
+    #[inline]
+    fn fract(self) -> Self {
+        self.fract()
+    }
+    #[inline]
+    fn hypot(self, other: Self) -> Self {
+        self.hypot(other)
+    }
+    #[inline]
+    fn ln(self) -> Self {
+        self.ln()
+    }
+    #[inline]
+    fn ln_1p(self) -> Self {
+        self.ln_1p()
+    }
+    #[inline]
+    fn log(self, base: Self) -> Self {
+        self.log(base)
+    }
+    #[inline]
+    fn log2(self) -> Self {
+        self.log2()
+    }
+    #[inline]
+    fn log10(self) -> Self {
+        self.log10()
+    }
+    #[inline]
+    fn midpoint(self, other: Self) -> Self {
+        self.midpoint(other)
+    }
+    #[inline]
+    fn mul_add(self, a: Self, b: Self) -> Self {
+        self.mul_add(a, b)
+    }
+    #[inline]
+    fn next_down(self) -> Self {
+        self.next_down()
+    }
+    #[inline]
+    fn next_up(self) -> Self {
+        self.next_up()
+    }
+    #[inline]
+    fn powf(self, n: Self) -> Self {
+        self.powf(n)
+    }
+    #[inline]
+    fn recip(self) -> Self {
+        self.recip()
+    }
+    #[inline]
+    fn rem_euclid(self, rhs: Self) -> Self {
+        self.rem_euclid(rhs)
+    }
+    #[inline]
+    fn round(self) -> Self {
+        self.round()
+    }
+    #[inline]
+    fn round_ties_even(self) -> Self {
+        self.round_ties_even()
+    }
+    #[inline]
+    fn sin(self) -> Self {
+        self.sin()
+    }
+    #[inline]
+    fn sinh(self) -> Self {
+        self.sinh()
+    }
+    #[inline]
+    fn sqrt(self) -> Self {
+        self.sqrt()
+    }
+    #[inline]
+    fn tan(self) -> Self {
+        self.tan()
+    }
+    #[inline]
+    fn tanh(self) -> Self {
+        self.tanh()
+    }
+    #[inline]
+    fn to_degrees(self) -> Self {
+        self.to_degrees()
+    }
+    #[inline]
+    fn to_radians(self) -> Self {
+        self.to_radians()
+    }
+    #[inline]
+    fn trunc(self) -> Self {
+        self.trunc()
+    }
 }
 
-pub trait One {
-    fn one() -> Self;
-}
-
-macro_rules! impl_zero_one {
+macro_rules! impl_float_ops {
     ($t:ty) => {
-        impl Zero for $t {
-            fn zero() -> Self {
-                0.0
+        impl FloatOps for $t {
+            #[inline]
+            fn abs(self) -> Self {
+                self.abs()
             }
-        }
-
-        impl One for $t {
-            fn one() -> Self {
-                1.0
+            #[inline]
+            fn acos(self) -> Self {
+                self.acos()
+            }
+            #[inline]
+            fn acosh(self) -> Self {
+                self.acosh()
+            }
+            #[inline]
+            fn asin(self) -> Self {
+                self.asin()
+            }
+            #[inline]
+            fn asinh(self) -> Self {
+                self.asinh()
+            }
+            #[inline]
+            fn atan(self) -> Self {
+                self.atan()
+            }
+            #[inline]
+            fn atan2(self, other: Self) -> Self {
+                self.atan2(other)
+            }
+            #[inline]
+            fn atanh(self) -> Self {
+                self.atanh()
+            }
+            #[inline]
+            fn cbrt(self) -> Self {
+                self.cbrt()
+            }
+            #[inline]
+            fn ceil(self) -> Self {
+                self.ceil()
+            }
+            #[inline]
+            fn cos(self) -> Self {
+                self.cos()
+            }
+            #[inline]
+            fn cosh(self) -> Self {
+                self.cosh()
+            }
+            #[inline]
+            fn div_euclid(self, rhs: Self) -> Self {
+                self.div_euclid(rhs)
+            }
+            #[inline]
+            fn exp(self) -> Self {
+                self.exp()
+            }
+            #[inline]
+            fn exp2(self) -> Self {
+                self.exp2()
+            }
+            #[inline]
+            fn exp_m1(self) -> Self {
+                self.exp_m1()
+            }
+            #[inline]
+            fn floor(self) -> Self {
+                self.floor()
+            }
+            #[inline]
+            fn fract(self) -> Self {
+                self.fract()
+            }
+            #[inline]
+            fn hypot(self, other: Self) -> Self {
+                self.hypot(other)
+            }
+            #[inline]
+            fn ln(self) -> Self {
+                self.ln()
+            }
+            #[inline]
+            fn ln_1p(self) -> Self {
+                self.ln_1p()
+            }
+            #[inline]
+            fn log(self, base: Self) -> Self {
+                self.log(base)
+            }
+            #[inline]
+            fn log2(self) -> Self {
+                self.log2()
+            }
+            #[inline]
+            fn log10(self) -> Self {
+                self.log10()
+            }
+            #[inline]
+            fn midpoint(self, other: Self) -> Self {
+                self.midpoint(other)
+            }
+            #[inline]
+            fn mul_add(self, a: Self, b: Self) -> Self {
+                self.mul_add(a, b)
+            }
+            #[inline]
+            fn next_down(self) -> Self {
+                self.next_down()
+            }
+            #[inline]
+            fn next_up(self) -> Self {
+                self.next_up()
+            }
+            #[inline]
+            fn powf(self, n: Self) -> Self {
+                self.powf(n)
+            }
+            #[inline]
+            fn recip(self) -> Self {
+                self.recip()
+            }
+            #[inline]
+            fn rem_euclid(self, rhs: Self) -> Self {
+                self.rem_euclid(rhs)
+            }
+            #[inline]
+            fn round(self) -> Self {
+                self.round()
+            }
+            #[inline]
+            fn round_ties_even(self) -> Self {
+                self.round_ties_even()
+            }
+            #[inline]
+            fn sin(self) -> Self {
+                self.sin()
+            }
+            #[inline]
+            fn sinh(self) -> Self {
+                self.sinh()
+            }
+            #[inline]
+            fn sqrt(self) -> Self {
+                self.sqrt()
+            }
+            #[inline]
+            fn tan(self) -> Self {
+                self.tan()
+            }
+            #[inline]
+            fn tanh(self) -> Self {
+                self.tanh()
+            }
+            #[inline]
+            fn to_degrees(self) -> Self {
+                self.to_degrees()
+            }
+            #[inline]
+            fn to_radians(self) -> Self {
+                self.to_radians()
+            }
+            #[inline]
+            fn trunc(self) -> Self {
+                self.trunc()
             }
         }
     };
@@ -490,7 +571,7 @@ macro_rules! impl_zero_one {
 
 impl_float!(f32);
 impl_float!(f64);
+impl_float_ops!(f32);
+impl_float_ops!(f64);
 impl_float_consts!(f32);
 impl_float_consts!(f64);
-impl_zero_one!(f32);
-impl_zero_one!(f64);

@@ -10,5 +10,6 @@
 
 mod float;
 pub mod mat;
+pub mod traits;
 
 pub use float::Float;
