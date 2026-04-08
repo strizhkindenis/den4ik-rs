@@ -1,8 +1,10 @@
 pub trait Zero {
+    #[must_use]
     fn zero() -> Self;
 }
 
 pub trait One {
+    #[must_use]
     fn one() -> Self;
 }
 
