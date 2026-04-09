@@ -1,8 +1,10 @@
 use std::{
     iter,
-    mem::{self, MaybeUninit},
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign},
-    ptr::{self, NonNull},
+    mem::MaybeUninit,
+    ops::{
+        Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Rem, RemAssign, Sub,
+        SubAssign,
+    },
     slice,
 };
 
@@ -36,59 +38,144 @@ impl Dims {
     pub fn size(&self) -> usize {
         self.rows * self.cols
     }
+
+    /// Asserts that the index is within the bounds of the matrix.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the `row` or `col` is out of bounds.
+    pub fn assert_index(&self, (row, col): (usize, usize)) {
+        assert!(
+            row < self.rows,
+            "invalid row index - `{row} >= {}`",
+            self.rows
+        );
+        assert!(
+            col < self.rows,
+            "invalid column index - `{col} >= {}`",
+            self.cols
+        );
+    }
 }
 
 pub struct Mat<T> {
-    data: NonNull<T>,
+    data: Box<[T]>,
     dims: Dims,
 }
 
 impl<T> Mat<T> {
-    /// SAFETY: data shouold be a valid pointer that matches `dims.size()`
-    unsafe fn from_raw_parts(data: *mut T, dims: Dims) -> Self {
-        let data = NonNull::new(data).expect("Poisslbe null pointer");
-        Self::from_parts(data, dims)
-    }
-
-    fn into_raw_parts(self) -> (*mut T, Dims) {
-        let (data, dims) = self.into_parts();
-        (data.as_ptr(), dims)
-    }
-
-    fn from_parts(data: NonNull<T>, dims: Dims) -> Self {
+    #[must_use]
+    ///
+    /// # Panics
+    ///
+    /// Panics if `data.len()` does not match `dims.size()`.
+    pub fn from_parts(data: Box<[T]>, dims: Dims) -> Self {
+        assert_eq!(
+            data.len(),
+            dims.size(),
+            "data.len() does not match dims.size()"
+        );
         Self { data, dims }
     }
 
-    fn into_parts(self) -> (NonNull<T>, Dims) {
-        let Mat { data, dims } = self;
+    #[must_use]
+    pub fn into_parts(self) -> (Box<[T]>, Dims) {
+        let Self { data, dims } = self;
         (data, dims)
     }
 
-    fn from_box_parts(data: Box<[T]>, dims: Dims) -> Self {
-        debug_assert_eq!(data.len(), dims.size());
-        let data = Box::into_raw(data).cast();
-        // SAFETY: Box<[T]> has a valid *mut T pointer
-        unsafe { Self::from_raw_parts(data, dims) }
+    #[must_use]
+    pub fn new_default(dims: Dims) -> Self
+    where
+        T: Default,
+    {
+        let mut mat = Self::new_uninit(dims);
+        mat.iter_mut().for_each(|x| {
+            x.write(T::default());
+        });
+        unsafe { mat.assume_init() }
+    }
+
+    #[must_use]
+    pub fn new_filled(dims: Dims, val: T) -> Self
+    where
+        T: Clone,
+    {
+        let mut mat = Self::new_uninit(dims);
+        let data = mat.as_slice_mut();
+        if let Some((last, rest)) = data.split_last_mut() {
+            for x in rest.iter_mut() {
+                x.write(val.clone());
+            }
+            last.write(val);
+        }
+        unsafe { mat.assume_init() }
     }
 
     #[must_use]
     pub fn new_uninit(dims: Dims) -> Mat<MaybeUninit<T>> {
         let data = Box::new_uninit_slice(dims.size());
-        Mat::from_box_parts(data, dims)
+        Mat { data, dims }
     }
 
-    pub fn new_filled_with<F>(mut f: F, dims: Dims) -> Mat<T>
+    pub fn new_filled_with<F>(dims: Dims, mut f: F) -> Mat<T>
     where
         F: FnMut((usize, usize)) -> T,
     {
         let mut mat = Mat::new_uninit(dims);
-        (0..dims.rows)
-            .flat_map(|row| (0..dims.cols).map(move |col| (row, col)))
-            .zip(mat.iter_mut())
-            .for_each(|(idx, x)| {
-                x.write(f(idx));
-            });
+        for (idx, x) in mat.row_slices_mut().enumerate().flat_map(|(row_idx, row)| {
+            row.iter_mut()
+                .enumerate()
+                .map(move |(col_idx, x)| ((row_idx, col_idx), x))
+        }) {
+            x.write(f(idx));
+        }
         unsafe { mat.assume_init() }
+    }
+
+    #[must_use]
+    pub fn zeros(dims: Dims) -> Self
+    where
+        T: Zero,
+    {
+        Self::new_filled_with(dims, |_| T::zero())
+    }
+
+    #[must_use]
+    pub fn ones(dims: Dims) -> Self
+    where
+        T: One,
+    {
+        Self::new_filled_with(dims, |_| T::one())
+    }
+
+    #[must_use]
+    pub fn eye(dims: Dims) -> Self
+    where
+        T: One + Zero,
+    {
+        Self::eye_k(dims, 0)
+    }
+
+    #[must_use]
+    ///
+    /// # Panics
+    ///
+    /// Panics if the row index cannot be converted to `i64`.
+    pub fn eye_k(dims: Dims, k: i64) -> Self
+    where
+        T: One + Zero,
+    {
+        let selector = |(row, col): (usize, usize)| {
+            let row: i64 = row.try_into().unwrap();
+            let col: i64 = col.try_into().unwrap();
+            if (row + k) == col {
+                T::one()
+            } else {
+                T::zero()
+            }
+        };
+        Self::new_filled_with(dims, selector)
     }
 
     #[must_use]
@@ -97,21 +184,28 @@ impl<T> Mat<T> {
     }
 
     #[must_use]
-    pub fn as_ptr_mut(&self) -> *mut T {
-        self.data.as_ptr()
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self.data.as_mut_ptr()
     }
 
     #[must_use]
     pub fn as_slice(&self) -> &[T] {
-        let ptr = self.as_ptr();
-        let len = self.len();
-        unsafe { slice::from_raw_parts(ptr, len) }
+        &self.data
     }
 
+    #[must_use]
     pub fn as_slice_mut(&mut self) -> &mut [T] {
-        let ptr = self.as_ptr_mut();
-        let len = self.len();
-        unsafe { slice::from_raw_parts_mut(ptr, len) }
+        &mut self.data
+    }
+
+    pub fn row_slices(&self) -> slice::ChunksExact<'_, T> {
+        let cols = self.cols();
+        self.as_slice().chunks_exact(cols)
+    }
+
+    pub fn row_slices_mut(&mut self) -> slice::ChunksExactMut<'_, T> {
+        let cols = self.cols();
+        self.as_slice_mut().chunks_exact_mut(cols)
     }
 
     #[must_use]
@@ -135,7 +229,9 @@ impl<T> Mat<T> {
     }
 
     #[must_use]
-    pub fn get_index(&self, row: usize, col: usize) -> usize {
+    pub fn get_index(&self, index: (usize, usize)) -> usize {
+        self.dims().assert_index(index);
+        let (row, col) = index;
         self.cols() * row + col
     }
 
@@ -177,7 +273,7 @@ impl<T> Mat<T> {
     ///
     /// Panics if the new dimensions size does not match the current matrix length.
     pub fn reshape(&mut self, dims: Dims) {
-        assert_eq!(self.len(), dims.size());
+        self.assert_dims(dims);
         self.dims = dims;
     }
 
@@ -190,74 +286,38 @@ impl<T> Mat<T> {
     }
 }
 
-impl<T> Drop for Mat<T> {
-    fn drop(&mut self) {
-        let ptr = self.as_ptr_mut();
-        unsafe {
-            let _ = Box::from_raw(ptr);
-        }
-    }
-}
-
 impl<T> Mat<MaybeUninit<T>> {
     /// # Safety
     ///
     /// The caller must ensure that all elements of the matrix have been initialized.
     #[must_use]
     pub unsafe fn assume_init(self) -> Mat<T> {
-        unsafe { mem::transmute(self) }
+        let (data, dims) = self.into_parts();
+        let raw = Box::into_raw(data) as *mut [T];
+        let data = unsafe { Box::from_raw(raw) };
+        Mat::from_parts(data, dims)
     }
 }
 
-impl<T: Default> Mat<T> {
-    #[must_use]
-    pub fn new_default(dims: Dims) -> Self {
-        let mut mat = Self::new_uninit(dims);
-        mat.iter_mut().for_each(|x| {
-            x.write(T::default());
-        });
-        unsafe { mat.assume_init() }
+impl<T> Index<(usize, usize)> for Mat<T> {
+    type Output = T;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        let idx = self.get_index(index);
+        &self.as_slice()[idx]
+    }
+}
+
+impl<T> IndexMut<(usize, usize)> for Mat<T> {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        let idx = self.get_index(index);
+        &mut self.as_slice_mut()[idx]
     }
 }
 
 impl<T: Clone> Clone for Mat<T> {
     fn clone(&self) -> Self {
-        let len = self.len();
-        let ptr = self.as_ptr_mut();
-        let ptr = ptr::slice_from_raw_parts_mut(ptr, len);
-        let boxed = unsafe { Box::from_raw(ptr) };
-        let data = boxed.clone();
-        mem::forget(boxed);
-        Self::from_box_parts(data, self.dims)
-    }
-}
-
-impl<T: Clone> Mat<T> {
-    pub fn new_filled(dims: Dims, val: T) -> Self {
-        let mut mat = Self::new_uninit(dims);
-        let mut data = mat.as_slice_mut();
-        let last = data.split_off_last_mut();
-        for x in data.iter_mut() {
-            x.write(val.clone());
-        }
-        if let Some(x) = last {
-            x.write(val);
-        }
-        unsafe { mat.assume_init() }
-    }
-}
-
-impl<T: Clone + One> Mat<T> {
-    #[must_use]
-    pub fn ones(dims: Dims) -> Self {
-        Self::new_filled(dims, T::one())
-    }
-}
-
-impl<T: Clone + Zero> Mat<T> {
-    #[must_use]
-    pub fn zeros(dims: Dims) -> Self {
-        Self::new_filled(dims, T::zero())
+        Self::from_parts(self.data.clone(), self.dims())
     }
 }
 
@@ -281,11 +341,7 @@ impl<T> IntoIterator for Mat<T> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<T>;
     fn into_iter(self) -> Self::IntoIter {
-        let (ptr, dims) = self.into_raw_parts();
-        let len = dims.size();
-        let ptr = std::ptr::slice_from_raw_parts_mut(ptr, len);
-        let boxed = unsafe { Box::from_raw(ptr) };
-        Vec::from(boxed).into_iter()
+        self.data.into_vec().into_iter()
     }
 }
 
@@ -293,7 +349,7 @@ impl<T> From<Vec<T>> for Mat<T> {
     fn from(value: Vec<T>) -> Self {
         let data = value.into_boxed_slice();
         let dims = Dims::new(1, data.len());
-        Self::from_box_parts(data, dims)
+        Self { data, dims }
     }
 }
 
