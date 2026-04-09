@@ -123,14 +123,23 @@ impl<T> Mat<T> {
         F: FnMut((usize, usize)) -> T,
     {
         let mut mat = Mat::new_uninit(dims);
-        for (idx, x) in mat.row_slices_mut().enumerate().flat_map(|(row_idx, row)| {
-            row.iter_mut()
-                .enumerate()
-                .map(move |(col_idx, x)| ((row_idx, col_idx), x))
-        }) {
-            x.write(f(idx));
+        for (row_idx, row) in mat.row_slices_mut().enumerate() {
+            for (col_idx, x) in row.iter_mut().enumerate() {
+                x.write(f((row_idx, col_idx)));
+            }
         }
         unsafe { mat.assume_init() }
+    }
+
+    pub fn apply_with<F>(&mut self, mut f: F)
+    where
+        F: FnMut((usize, usize), &mut T),
+    {
+        for (row_idx, row) in self.row_slices_mut().enumerate() {
+            for (col_idx, x) in row.iter_mut().enumerate() {
+                f((row_idx, col_idx), x);
+            }
+        }
     }
 
     #[must_use]
