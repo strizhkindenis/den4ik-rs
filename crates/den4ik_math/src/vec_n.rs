@@ -1,6 +1,5 @@
 use std::{
     array,
-    cmp::Ordering,
     iter::{self, Sum},
     mem::{self, MaybeUninit},
     ops::{
@@ -114,9 +113,18 @@ impl<const N: usize, T> From<[T; N]> for VecN<N, T> {
 
 impl<const N: usize, T> Sum for VecN<N, T>
 where
-    T: Zero + Add<T>,
+    T: Zero + Add<T, Output = T>,
 {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(VecN::zero(), |a, b| a + b)
+    }
+}
+
+impl<'s, const N: usize, T> Sum<&'s VecN<N, T>> for VecN<N, T>
+where
+    T: Zero + Add<&'s T, Output = T>,
+{
+    fn sum<I: Iterator<Item = &'s Self>>(iter: I) -> Self {
         iter.fold(VecN::zero(), |a, b| a + b)
     }
 }
@@ -228,7 +236,7 @@ impl_op_assign!(DivAssign, div_assign);
 impl_op_assign!(RemAssign, rem_assign);
 
 macro_rules! impl_op_body_vec {
-    ($trait:ident, $method:ident, $ta:ty, $tb:ty, $vta: ty, $vtb:ty) => {
+    ($trait:ident, $method:ident, $ta:ty, $tb:ty, $vta:ty, $vtb:ty) => {
         impl<'a, 'b, const N: usize, T> $trait<$vtb> for $vta
         where
             $ta: $trait<$tb, Output = T>,
@@ -250,8 +258,8 @@ macro_rules! impl_op_body_t {
     ($trait:ident, $method:ident, $ta:ty, $tb:ty, $vta:ty) => {
         impl<'a, 'b, const N: usize, T> $trait<$tb> for $vta
         where
-            $ta: $trait<$tb, Output = T>,
             T: Copy,
+            $ta: $trait<$tb, Output = T>,
         {
             type Output = VecN<N, T>;
             fn $method(self, val: $tb) -> Self::Output {
