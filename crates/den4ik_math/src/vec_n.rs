@@ -21,6 +21,7 @@ macro_rules! impl_view {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VecN<const N: usize, T> {
     pub coords: [T; N],
 }
@@ -56,17 +57,6 @@ impl_vec_n!(Vec2, 2, ViewXY, x, y);
 impl_vec_n!(Vec3, 3, ViewXYZ, x, y, z);
 impl_vec_n!(Vec4, 4, ViewXYZW, x, y, z, w);
 
-impl<const N: usize, T> PartialEq for VecN<N, T>
-where
-    T: PartialEq,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.coords.eq(&other.coords)
-    }
-}
-
-impl<const N: usize, T> Eq for VecN<N, T> where T: Eq {}
-
 impl<const N: usize, T> Default for VecN<N, T>
 where
     T: Default,
@@ -94,17 +84,6 @@ where
     }
 }
 
-impl<const N: usize, T> Clone for VecN<N, T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        Self::from(self.coords.clone())
-    }
-}
-
-impl<const N: usize, T> Copy for VecN<N, T> where T: Copy {}
-
 impl<const N: usize, T> From<[T; N]> for VecN<N, T> {
     fn from(coords: [T; N]) -> Self {
         Self { coords }
@@ -130,6 +109,7 @@ where
 }
 
 impl<const N: usize, T> VecN<N, T> {
+    #[must_use]
     pub fn new_uninit() -> VecN<N, MaybeUninit<T>> {
         VecN::from_fn(|_| MaybeUninit::uninit())
     }
@@ -148,9 +128,36 @@ impl<const N: usize, T> VecN<N, T> {
     pub fn iter_mut(&mut self) -> slice::IterMut<'_, T> {
         self.coords.iter_mut()
     }
+
+    pub fn dot(self, other: Self) -> T
+    where
+        T: Mul<T, Output = T> + Sum,
+    {
+        (self * other).into_iter().sum()
+    }
+
+    pub fn length_squared(self) -> T
+    where
+        T: Mul<T, Output = T> + Sum + Copy,
+    {
+        (self * self).into_iter().sum()
+    }
+
+    pub fn distance_squared(self, other: Self) -> T
+    where
+        T: Sub<T, Output = T>,
+        T: Mul<T, Output = T> + Sum + Copy,
+    {
+        (self - other).length_squared()
+    }
 }
 
 impl<const N: usize, T> VecN<N, MaybeUninit<T>> {
+    /// # Safety
+    ///
+    /// The caller must ensure that all bytes in `self` represent a valid `T`.
+    /// This function is only safe if the `VecN<N, MaybeUninit<T>>` was initialized
+    /// properly.
     pub unsafe fn assume_init(self) -> VecN<N, T> {
         let coords = unsafe { mem::transmute_copy::<_, [T; N]>(&self.coords) };
         VecN::from(coords)
@@ -294,53 +301,12 @@ impl_op!(Div, div);
 impl_op!(Rem, rem);
 
 // impl<const N: usize, T: Float> VecN<N, T> {
-//     pub fn dot(self, other: Self) -> T {
-//         (self * other).into_iter().sum()
-//     }
-
-//     pub fn total_cmp(self, other: &Self) -> Ordering {
-//         iter::zip(self, other).fold(Ordering::Equal, |ord, (a, b)| match ord {
-//             Ordering::Equal => a.total_cmp(b),
-//             _ => ord,
-//         })
-//     }
-
-//     pub fn min(self, other: Self) -> Self {
-//         match self.total_cmp(&other) {
-//             Ordering::Less | Ordering::Equal => self,
-//             Ordering::Greater => other,
-//         }
-//     }
-
-//     pub fn max(self, other: Self) -> Self {
-//         match self.total_cmp(&other) {
-//             Ordering::Greater | Ordering::Equal => self,
-//             Ordering::Less => other,
-//         }
-//     }
-
 //     pub fn has_nan(self) -> bool {
 //         self.iter().any(|x| x.is_nan())
 //     }
 
-//     pub fn iter(&self) -> slice::Iter<'_, T> {
-//         self.coords.iter()
-//     }
-
-//     pub fn iter_mut(&mut self) -> slice::IterMut<'_, T> {
-//         self.coords.iter_mut()
-//     }
-
-//     pub fn length_squared(self) -> T {
-//         (self * self).iter().copied().sum()
-//     }
-
 //     pub fn length(self) -> T {
 //         self.length_squared().sqrt()
-//     }
-
-//     pub fn distance_squared(self, other: Self) -> T {
-//         (self - other).length_squared()
 //     }
 
 //     pub fn distance(self, other: Self) -> T {
