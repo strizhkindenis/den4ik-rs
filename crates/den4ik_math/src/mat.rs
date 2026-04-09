@@ -44,7 +44,7 @@ pub struct Mat<T> {
 }
 
 impl<T> Mat<T> {
-    /// SAFETY: data shouold be a valid pointer that matches dims.size()
+    /// SAFETY: data shouold be a valid pointer that matches `dims.size()`
     unsafe fn from_raw_parts(data: *mut T, dims: Dims) -> Self {
         let data = NonNull::new(data).expect("Poisslbe null pointer");
         Self::from_parts(data, dims)
@@ -71,13 +71,7 @@ impl<T> Mat<T> {
         unsafe { Self::from_raw_parts(data, dims) }
     }
 
-    fn into_box_parts(self) -> (Box<[T]>, Dims) {
-        let (ptr, dims) = self.into_raw_parts();
-        let ptr = ptr::slice_from_raw_parts_mut(ptr, dims.size());
-        let data = unsafe { Box::from_raw(ptr) };
-        (data, dims)
-    }
-
+    #[must_use]
     pub fn new_uninit(dims: Dims) -> Mat<MaybeUninit<T>> {
         let data = Box::new_uninit_slice(dims.size());
         Mat::from_box_parts(data, dims)
@@ -97,14 +91,17 @@ impl<T> Mat<T> {
         unsafe { mat.assume_init() }
     }
 
+    #[must_use]
     pub fn as_ptr(&self) -> *const T {
         self.data.as_ptr()
     }
 
+    #[must_use]
     pub fn as_ptr_mut(&self) -> *mut T {
         self.data.as_ptr()
     }
 
+    #[must_use]
     pub fn as_slice(&self) -> &[T] {
         let ptr = self.as_ptr();
         let len = self.len();
@@ -132,14 +129,17 @@ impl<T> Mat<T> {
         self.dims.size()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    #[must_use]
     pub fn get_index(&self, row: usize, col: usize) -> usize {
         self.cols() * row + col
     }
 
+    #[must_use]
     pub fn get_row_col(&self, idx: usize) -> (usize, usize) {
         let col = idx % self.cols();
         let row = idx / self.cols();
@@ -151,6 +151,9 @@ impl<T> Mat<T> {
         self.dims
     }
 
+    /// # Panics
+    ///
+    /// Panics if the matrix length does not match the expected length.
     pub fn assert_len(&self, len: usize) {
         assert_eq!(self.len(), len, "Matrix sizes must match");
     }
@@ -159,14 +162,20 @@ impl<T> Mat<T> {
         self.assert_len(mat.len());
     }
 
+    /// # Panics
+    ///
+    /// Panics if the matrix dimensions do not match the expected dimensions.
     pub fn assert_dims(&self, dims: Dims) {
         assert_eq!(self.dims(), dims, "Matrix dimensions must match");
     }
 
     pub fn assert_dims_mat(&self, mat: &Mat<T>) {
-        self.assert_dims(mat.dims())
+        self.assert_dims(mat.dims());
     }
 
+    /// # Panics
+    ///
+    /// Panics if the new dimensions size does not match the current matrix length.
     pub fn reshape(&mut self, dims: Dims) {
         assert_eq!(self.len(), dims.size());
         self.dims = dims;
@@ -191,12 +200,17 @@ impl<T> Drop for Mat<T> {
 }
 
 impl<T> Mat<MaybeUninit<T>> {
+    /// # Safety
+    ///
+    /// The caller must ensure that all elements of the matrix have been initialized.
+    #[must_use]
     pub unsafe fn assume_init(self) -> Mat<T> {
         unsafe { mem::transmute(self) }
     }
 }
 
 impl<T: Default> Mat<T> {
+    #[must_use]
     pub fn new_default(dims: Dims) -> Self {
         let mut mat = Self::new_uninit(dims);
         mat.iter_mut().for_each(|x| {
@@ -223,9 +237,9 @@ impl<T: Clone> Mat<T> {
         let mut mat = Self::new_uninit(dims);
         let mut data = mat.as_slice_mut();
         let last = data.split_off_last_mut();
-        data.iter_mut().for_each(|x| {
+        for x in data.iter_mut() {
             x.write(val.clone());
-        });
+        }
         if let Some(x) = last {
             x.write(val);
         }
@@ -251,7 +265,7 @@ impl<'a, T> IntoIterator for &'a Mat<T> {
     type Item = &'a T;
     type IntoIter = slice::Iter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
-        self.as_slice().into_iter()
+        self.as_slice().iter()
     }
 }
 
@@ -259,7 +273,7 @@ impl<'a, T> IntoIterator for &'a mut Mat<T> {
     type Item = &'a mut T;
     type IntoIter = slice::IterMut<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
-        self.as_slice_mut().into_iter()
+        self.as_slice_mut().iter_mut()
     }
 }
 
@@ -269,8 +283,9 @@ impl<T> IntoIterator for Mat<T> {
     fn into_iter(self) -> Self::IntoIter {
         let (ptr, dims) = self.into_raw_parts();
         let len = dims.size();
-        let v = unsafe { Vec::from_raw_parts(ptr, len, len) };
-        v.into_iter()
+        let ptr = std::ptr::slice_from_raw_parts_mut(ptr, len);
+        let boxed = unsafe { Box::from_raw(ptr) };
+        Vec::from(boxed).into_iter()
     }
 }
 
