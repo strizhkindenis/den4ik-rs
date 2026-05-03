@@ -1,140 +1,210 @@
+#![deny(
+    clippy::all,
+    clippy::correctness,
+    clippy::suspicious,
+    clippy::complexity,
+    clippy::perf,
+    clippy::style,
+    clippy::pedantic
+)]
+
 use std::{
-    array,
-    borrow::Cow,
     collections::HashMap,
     fs,
-    io::Read,
+    io::{self, Read},
     os::unix::net::{UnixListener, UnixStream},
     path::Path,
+    str::FromStr,
+    thread,
 };
 
 const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
 const MAX_HEADERS_SIZE: usize = 1024;
 const MAX_CONTENT_SIZE: usize = 1024;
 
+const HEADER_CONTENT_LENGTH: &str = "CONTENT_LENGTH";
+const HEADER_SCGI: &str = "SCGI";
+const HEADER_METHOD: &str = "REQUEST_METHOD";
+const HEADER_URI: &str = "REQUEST_URI";
+
 #[derive(Debug, Clone, Copy)]
-enum Method {
+pub enum Method {
     GET,
     POST,
     DELETE,
 }
 
-impl TryFrom<&str> for Method {
-	type Error = String;
-	fn try_from(value: &str) -> Result<Self, Self::Error> {
-		match value.trim() {
-			"GET" => Ok(Method::GET)
-			"POST" => Ok(Method::POST)
-			"DELETE" => Ok(Method::DELETE)
-			_ @ value => Err(value.to_string)
-		}
-	}
+impl FromStr for Method {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "GET" => Ok(Method::GET),
+            "POST" => Ok(Method::POST),
+            "DELETE" => Ok(Method::DELETE),
+            value => Err(value.to_string()),
+        }
+    }
 }
 
-pub struct Ctx<'l> {
+#[derive(Debug)]
+pub enum SCGIError {
+    HeadersIo(io::Error),
+    HeadersInvalidLength,
+    HeadersTooLarge(usize),
+    HeadersNoClosingComma,
+    MissingHeader(&'static str),
+    InvalidHeader(&'static str, String),
+    InvalidMethod(String),
+    ContentIo(io::Error),
+    ContentInvalidLength,
+    ContentTooLarge(usize, usize),
+}
+
+pub struct Ctx<S> {
+    uri: String,
     method: Method,
     headers: HashMap<String, String>,
     content: Vec<u8>,
-    uri: &'l str,
+    state: S,
 }
 
 struct ConCtx<S> {
     state: S,
     stream: UnixStream,
-    content_len: usize,
+    max_content_len: usize,
+}
+
+fn get_header<'l>(
+    headers: &'l HashMap<String, String>,
+    header: &'static str,
+) -> Result<&'l str, SCGIError> {
+    headers
+        .get(header)
+        .ok_or(SCGIError::MissingHeader(header))
+        .map(std::string::String::as_str)
+}
+
+fn get_header_as<T>(headers: &HashMap<String, String>, header: &'static str) -> Result<T, SCGIError>
+where
+    T: FromStr,
+{
+    let value = get_header(headers, header)?;
+    value
+        .parse::<T>()
+        .map_err(|_| SCGIError::InvalidHeader(header, value.to_string()))
 }
 
 impl<S> ConCtx<S> {
-    fn new(stream: UnixStream, state: S, content_len: Option<usize>) -> Self {
-    	let content_len = content_len.unwrap_or(MAX_CONTENT_SIZE).min(MAX_CONTENT_SIZE); 
+    fn new(stream: UnixStream, state: S, max_content_len: Option<usize>) -> Self {
+        let max_content_len = max_content_len
+            .unwrap_or(MAX_CONTENT_SIZE)
+            .min(MAX_CONTENT_SIZE);
         Self {
             state,
             stream,
-            content_len,
+            max_content_len,
         }
     }
 
-    fn parse_header_len(&mut self) -> usize {
+    fn parse_headers_len(&mut self) -> Result<usize, SCGIError> {
         let mut c_buf = [0u8; 1];
         let mut n = 0;
         loop {
             self.stream
                 .read_exact(&mut c_buf)
-                .expect(&format!("{CRATE_NAME}: couldn't parse headers length"));
-            let c = char::try_from(c_buf[0])
-                .expect(&format!("{CRATE_NAME}: couldn't parse headers length"));
-            if c == ':' {
+                .map_err(SCGIError::HeadersIo)?;
+            let c = c_buf[0];
+            if c == b':' {
                 break;
             }
-            let c =
-                usize::try_from(c).expect(&format!("{CRATE_NAME}: couldn't parse headers length"));
-            n += n * 10 + c;
+            if !c.is_ascii_digit() {
+                return Err(SCGIError::HeadersInvalidLength);
+            }
+            n += n * 10 + usize::from(c);
+            if n > MAX_HEADERS_SIZE {
+                break;
+            }
         }
-        n
+        Ok(n)
     }
 
-    fn parse_headers(&mut self, headers_len: usize) -> HashMap<String, String> {
+    fn parse_headers(&mut self, headers_len: usize) -> Result<HashMap<String, String>, SCGIError> {
         if headers_len > MAX_HEADERS_SIZE {
-            panic!("{CRATE_NAME}: headers size > MAX_HEADERS_SIZE({MAX_HEADERS_SIZE}");
+            return Err(SCGIError::HeadersTooLarge(headers_len));
         }
         let mut headers_buf = vec![0u8; headers_len];
         self.stream
             .read_exact(&mut headers_buf)
-            .expect(&format!("{CRATE_NAME}: couldn't read headers data"));
+            .map_err(SCGIError::HeadersIo)?;
         let mut c_buf = [0u8; 1];
         self.stream
             .read_exact(&mut c_buf)
-            .expect(&format!("{CRATE_NAME}: expected ',' after headers data"));
-        if char::try_from(c_buf[0])
-            .expect(&format!("{CRATE_NAME}: expected ',' after headers data"))
-            != ','
-        {
-            panic!("{CRATE_NAME}: expected ',' after headers data");
+            .map_err(SCGIError::HeadersIo)?;
+        if c_buf[0] != b',' {
+            return Err(SCGIError::HeadersNoClosingComma);
         }
         let mut headers_iter = headers_buf
-            .split(|b| 0u8.eq(b))
+            .split(|b| b'\0'.eq(b))
             .map(String::from_utf8_lossy)
             .map(String::from);
         let mut headers = HashMap::new();
         while let Some(key) = headers_iter.next() {
-            let value = headers_iter.next().unwrap_or_else(|| "".to_string());
+            let value = headers_iter.next().unwrap_or_else(String::new);
             headers.insert(key, value);
         }
-        headers
+        Ok(headers)
     }
-    
-    fn parse_content(&mut self, content_len: usize) {
-    
+
+    fn parse_content(&mut self, content_len: usize) -> Result<Vec<u8>, SCGIError> {
+        if content_len > self.max_content_len {
+            return Err(SCGIError::ContentTooLarge(
+                content_len,
+                self.max_content_len,
+            ));
+        }
+        let mut content_buf = vec![0u8; content_len];
+        self.stream
+            .read_exact(&mut content_buf)
+            .map_err(SCGIError::ContentIo)?;
+        Ok(content_buf)
     }
-    
-    fn parse_scgi(&mut self) {
-   	let headers_len = self.parse_headers_len(); 
-   	let headers = self.parse_headers(headers_len);
-   	let content_len = headers.get("CONTENT_LENGTH")
-   		.expect(&format!("{CRATE_NAME}: SCGI header `{}` is missing", "CONTENT_LENGTH"))
-   		.parse::<usize>()
-   		.expect(&format!("{CRATE_NAME}: SCGI header `{}` is not a valid number", "CONTENT_LENGTH"));
-   	if content_len > self.content_len {
-            panic!("{CRATE_NAME}: content size > MAX_CONTENT_SIZE({content_len})");
-   	}
-   	let mut content = vec![0u8; content_len];
-   	self.stream.read_exact(&mut content)
-   		.expect(&format!("{CRATE_NAME}: couldn't read content");
+
+    fn parse_scgi(mut self) -> Result<(), SCGIError> {
+        let headers_len = self.parse_headers_len()?;
+        let headers = self.parse_headers(headers_len)?;
+        let content_len = get_header_as(&headers, HEADER_CONTENT_LENGTH)?;
+        let method = get_header(&headers, HEADER_METHOD)?
+            .parse::<Method>()
+            .map_err(SCGIError::InvalidMethod)?;
+        let uri = get_header(&headers, HEADER_URI)?.to_string();
+        let content = self.parse_content(content_len)?;
+        let ConCtx {
+            state, stream: _, ..
+        } = self;
+        let ctx = Ctx {
+            uri,
+            method,
+            headers,
+            content,
+            state,
+        };
+        sample_handler(ctx);
+        Ok(())
     }
 }
 
 fn remove_file(path: &Path) {
-    let exists = path.try_exists().expect(&format!(
-        "{CRATE_NAME}: couldn't verify existence of file: {}",
-        path.display()
-    ));
+    let exists = path.try_exists().unwrap_or_else(|_| {
+        panic!(
+            "{CRATE_NAME}: couldn't verify existence of file: {}",
+            path.display()
+        )
+    });
     if !exists {
         return;
     }
-    fs::remove_file(path).expect(&format!(
-        "{CRATE_NAME}: couldn't delete file: {}",
-        path.display()
-    ));
+    fs::remove_file(path)
+        .unwrap_or_else(|_| panic!("{CRATE_NAME}: couldn't delete file: {}", path.display()));
 }
 
 pub struct SCGI<S>(S);
@@ -146,34 +216,36 @@ impl<S> SCGI<S> {
 
     pub fn run<P: AsRef<Path>>(&self, path: P)
     where
-        S: Clone,
+        S: Clone + Send + 'static,
     {
         let path = path.as_ref();
         remove_file(path);
-        let listener = UnixListener::bind(path).expect(&format!(
-            "{CRATE_NAME}: failed to bind to the socket: {}",
-            path.display()
-        ));
-        for stream in listener.incoming() {
-            let stream = stream.expect(&format!(
-                "{CRATE_NAME}: failed to open connection: {}",
+        let listener = UnixListener::bind(path).unwrap_or_else(|_| {
+            panic!(
+                "{CRATE_NAME}: failed to bind to the socket: {}",
                 path.display()
-            ));
+            )
+        });
+        for stream in listener.incoming() {
+            let stream = stream.unwrap_or_else(|_| {
+                panic!(
+                    "{CRATE_NAME}: failed to open connection: {}",
+                    path.display()
+                )
+            });
             let state = self.0.clone();
-            let con_ctx = ConCtx::new(stream, state);
+            let con_ctx = ConCtx::new(stream, state, None);
+            thread::spawn(move || {
+                let _ = con_ctx.parse_scgi();
+            });
         }
     }
 }
 
-fn sample_handler<'l, S>(ctx: Ctx<'l>) {
+fn sample_handler<S>(ctx: Ctx<S>) {
     println!("Method: {:?}", ctx.method);
     println!("URI: {}", ctx.uri);
-    if let Some(text) = ctx.content.get_text() {
-        println!("Text: {}", text);
-    }
-    if let Some(file) = ctx.content.get_file() {
-        println!("FILE: {}KB", file.len() / 1024);
-    }
+    println!("Headers: {:?}", ctx.headers);
 }
 
 #[cfg(test)]
