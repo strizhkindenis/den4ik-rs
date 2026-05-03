@@ -19,6 +19,18 @@ enum Method {
     DELETE,
 }
 
+impl TryFrom<&str> for Method {
+	type Error = String;
+	fn try_from(value: &str) -> Result<Self, Self::Error> {
+		match value.trim() {
+			"GET" => Ok(Method::GET)
+			"POST" => Ok(Method::POST)
+			"DELETE" => Ok(Method::DELETE)
+			_ @ value => Err(value.to_string)
+		}
+	}
+}
+
 pub struct Ctx<'l> {
     method: Method,
     headers: HashMap<String, String>,
