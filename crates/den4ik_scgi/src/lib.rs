@@ -11,7 +11,7 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{self, Read},
+    io::{self, Read, Write},
     os::unix::net::{UnixListener, UnixStream},
     path::Path,
     str::FromStr,
@@ -58,6 +58,43 @@ pub enum SCGIError {
     ContentIo(io::Error),
     ContentInvalidLength,
     ContentTooLarge(usize, usize),
+    InvalidConnection,
+}
+
+pub struct Response {
+    status: u16,
+    content_type: String,
+    content: Vec<u8>,
+}
+
+impl Default for Response {
+    fn default() -> Self {
+        Self {
+            status: 200,
+            content_type: String::from("text/plain; charset=utf-8"),
+            content: Vec::new(),
+        }
+    }
+}
+
+impl Response {
+    #[must_use] 
+    pub fn with_status(mut self, status: u16) -> Self {
+        self.status = status;
+        self
+    }
+
+    #[must_use] 
+    pub fn with_content_type(mut self, content_type: String) -> Self {
+        self.content_type = content_type;
+        self
+    }
+
+    #[must_use] 
+    pub fn with_content(mut self, content: Vec<u8>) -> Self {
+        self.content = content;
+        self
+    }
 }
 
 pub struct Ctx<S> {
@@ -68,8 +105,9 @@ pub struct Ctx<S> {
     state: S,
 }
 
-struct ConCtx<S> {
+struct ConCtx<S, F> {
     state: S,
+    handler: F,
     stream: UnixStream,
     max_content_len: usize,
 }
@@ -94,13 +132,14 @@ where
         .map_err(|_| SCGIError::InvalidHeader(header, value.to_string()))
 }
 
-impl<S> ConCtx<S> {
-    fn new(stream: UnixStream, state: S, max_content_len: Option<usize>) -> Self {
+impl<S, F> ConCtx<S, F> {
+    fn new(stream: UnixStream, state: S, handler: F, max_content_len: Option<usize>) -> Self {
         let max_content_len = max_content_len
             .unwrap_or(MAX_CONTENT_SIZE)
             .min(MAX_CONTENT_SIZE);
         Self {
             state,
+            handler,
             stream,
             max_content_len,
         }
@@ -120,7 +159,7 @@ impl<S> ConCtx<S> {
             if !c.is_ascii_digit() {
                 return Err(SCGIError::HeadersInvalidLength);
             }
-            n += n * 10 + usize::from(c);
+            n = n * 10 + usize::from(c - b'0');
             if n > MAX_HEADERS_SIZE {
                 break;
             }
@@ -149,7 +188,7 @@ impl<S> ConCtx<S> {
             .map(String::from);
         let mut headers = HashMap::new();
         while let Some(key) = headers_iter.next() {
-            let value = headers_iter.next().unwrap_or_else(String::new);
+            let value = headers_iter.next().unwrap_or_default();
             headers.insert(key, value);
         }
         Ok(headers)
@@ -169,26 +208,55 @@ impl<S> ConCtx<S> {
         Ok(content_buf)
     }
 
-    fn parse_scgi(mut self) -> Result<(), SCGIError> {
+    fn parse_scgi(mut self) -> Result<(), SCGIError>
+    where
+        S: Clone,
+        F: Fn(Ctx<S>) -> Response,
+    {
         let headers_len = self.parse_headers_len()?;
         let headers = self.parse_headers(headers_len)?;
+        let scgi_version = get_header(&headers, HEADER_SCGI)?;
+        if scgi_version != "1" {
+            return Err(SCGIError::InvalidHeader(
+                HEADER_SCGI,
+                scgi_version.to_string(),
+            ));
+        }
         let content_len = get_header_as(&headers, HEADER_CONTENT_LENGTH)?;
         let method = get_header(&headers, HEADER_METHOD)?
             .parse::<Method>()
             .map_err(SCGIError::InvalidMethod)?;
         let uri = get_header(&headers, HEADER_URI)?.to_string();
         let content = self.parse_content(content_len)?;
-        let ConCtx {
-            state, stream: _, ..
-        } = self;
         let ctx = Ctx {
             uri,
             method,
             headers,
             content,
-            state,
+            state: self.state.clone(),
         };
-        sample_handler(ctx);
+        let response = (self.handler)(ctx);
+        self.write_response(response)
+    }
+
+    fn write_response(&mut self, response: Response) -> Result<(), SCGIError> {
+        let status_text = match response.status {
+            200 => "OK",
+            400 => "Bad Request",
+            404 => "Not Found",
+            500 => "Internal Server Error",
+            _ => "Unknown",
+        };
+        let header = format!(
+            "Status: {} {}\r\nContent-Type: {}\r\n\r\n",
+            response.status, status_text, response.content_type
+        );
+        self.stream
+            .write_all(header.as_bytes())
+            .map_err(SCGIError::HeadersIo)?;
+        self.stream
+            .write_all(&response.content)
+            .map_err(SCGIError::ContentIo)?;
         Ok(())
     }
 }
@@ -207,16 +275,20 @@ fn remove_file(path: &Path) {
         .unwrap_or_else(|_| panic!("{CRATE_NAME}: couldn't delete file: {}", path.display()));
 }
 
-pub struct SCGI<S>(S);
+pub struct SCGI<S, F> {
+    state: S,
+    handler: F,
+}
 
-impl<S> SCGI<S> {
-    pub fn new(state: S) -> Self {
-        Self(state)
+impl<S, F> SCGI<S, F> {
+    pub fn new(state: S, handler: F) -> Self {
+        Self { state, handler }
     }
 
-    pub fn run<P: AsRef<Path>>(&self, path: P)
+    pub fn run<P: AsRef<Path>>(self, path: P)
     where
         S: Clone + Send + 'static,
+        F: Fn(Ctx<S>) -> Response + Sync + Send + 'static,
     {
         let path = path.as_ref();
         remove_file(path);
@@ -226,26 +298,20 @@ impl<S> SCGI<S> {
                 path.display()
             )
         });
-        for stream in listener.incoming() {
-            let stream = stream.unwrap_or_else(|_| {
-                panic!(
-                    "{CRATE_NAME}: failed to open connection: {}",
-                    path.display()
-                )
-            });
-            let state = self.0.clone();
-            let con_ctx = ConCtx::new(stream, state, None);
-            thread::spawn(move || {
-                let _ = con_ctx.parse_scgi();
-            });
-        }
+        let _ = thread::scope(|s| {
+            for stream in listener.incoming() {
+                let Ok(stream) = stream else {
+                    return Err(SCGIError::InvalidConnection);
+                };
+                let state = self.state.clone();
+                let con_ctx = ConCtx::new(stream, state, &self.handler, None);
+                s.spawn(move || {
+                    let _ = con_ctx.parse_scgi();
+                });
+            }
+            Ok(())
+        });
     }
-}
-
-fn sample_handler<S>(ctx: Ctx<S>) {
-    println!("Method: {:?}", ctx.method);
-    println!("URI: {}", ctx.uri);
-    println!("Headers: {:?}", ctx.headers);
 }
 
 #[cfg(test)]
