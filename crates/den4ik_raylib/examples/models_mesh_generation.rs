@@ -3,10 +3,8 @@ use den4ik_raylib::{
     color::{Color, fade},
     container::{Container, ContainerId},
     core::{
-        CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT, Vector3, begin_drawing,
-        begin_mode_3d, clear_background, draw_grid, draw_rectangle, draw_rectangle_lines,
-        draw_text, end_drawing, end_mode_3d, is_key_pressed, is_mouse_button_pressed,
-        update_camera,
+        CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT, Vector3, is_key_pressed,
+        is_mouse_button_pressed, update_camera,
     },
     image::{Image, ImageId},
     material::MATERIAL_MAP_DIFFUSE,
@@ -21,7 +19,7 @@ fn gen_mesh_custom(handle: &mut RaylibHandle) -> MeshId {
     let config = MeshConfigBuilder::new(3, 1).with_normals().build().unwrap();
     let mesh_id = Mesh::new(handle, config).unwrap();
     {
-        let mesh = handle.meshes.get_mut(mesh_id).unwrap();
+        let mesh = <RaylibHandle as Container<Mesh, MeshId>>::get_mut(handle, mesh_id).unwrap();
         mesh.get_vertices_mut()[0] = [0.0, 0.0, 0.0];
         mesh.get_normals_mut()[0] = [0.0, 1.0, 0.0];
         mesh.get_texcoords_mut()[0] = [0.0, 0.0];
@@ -31,7 +29,7 @@ fn gen_mesh_custom(handle: &mut RaylibHandle) -> MeshId {
         mesh.get_vertices_mut()[2] = [2.0, 0.0, 0.0];
         mesh.get_normals_mut()[2] = [0.0, 1.0, 0.0];
         mesh.get_texcoords_mut()[2] = [1.0, 0.0];
-        mesh.upload(handle, false);
+        mesh.upload(false);
     }
     mesh_id
 }
@@ -46,21 +44,21 @@ fn get_texture(handle: &mut RaylibHandle) -> Texture2DId {
 fn get_models(handle: &mut RaylibHandle) -> Vec<ModelId> {
     let texture_id = get_texture(handle);
     let mut models = Vec::new();
-    let mesh_id = Mesh::gen_plane(handle, 2.0, 2.0, 4, 3).unwrap();
+    let mesh_id = Mesh::gen_plane(handle, 2.0, 2.0, 4, 3);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_cube(handle, 2.0, 1.0, 2.0).unwrap();
+    let mesh_id = Mesh::gen_cube(handle, 2.0, 1.0, 2.0);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_sphere(handle, 2.0, 32, 32).unwrap();
+    let mesh_id = Mesh::gen_sphere(handle, 2.0, 32, 32);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_hemisphere(handle, 2.0, 16, 16).unwrap();
+    let mesh_id = Mesh::gen_hemisphere(handle, 2.0, 16, 16);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_cylinder(handle, 1.0, 2.0, 16).unwrap();
+    let mesh_id = Mesh::gen_cylinder(handle, 1.0, 2.0, 16);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_torus(handle, 0.25, 4.0, 16, 32).unwrap();
+    let mesh_id = Mesh::gen_torus(handle, 0.25, 4.0, 16, 32);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_knot(handle, 1.0, 2.0, 16, 128).unwrap();
+    let mesh_id = Mesh::gen_knot(handle, 1.0, 2.0, 16, 128);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_poly(handle, 5, 2.0).unwrap();
+    let mesh_id = Mesh::gen_poly(handle, 5, 2.0);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
     let mesh_id = gen_mesh_custom(handle);
     models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
@@ -99,7 +97,6 @@ fn main() {
     };
     let mut current_model: usize = 0;
     handle.set_target_fps(60);
-
     while !handle.window_should_close() {
         update_camera(&mut camera, CAMERA_ORBITAL as i32);
 
@@ -119,42 +116,37 @@ fn main() {
                 current_model -= 1;
             }
         }
-
-        begin_drawing();
-        clear_background(Color::RAYWHITE);
-
-        begin_mode_3d(camera);
-        handle
-            .models
-            .get(models[current_model as usize])
-            .unwrap()
-            .draw(position, 1.0, Color::WHITE);
-        draw_grid(10, 1.0);
-        end_mode_3d();
-
-        draw_rectangle(30, 400, 310, 30, fade(Color::SKYBLUE, 0.5));
-        draw_rectangle_lines(30, 400, 310, 30, fade(Color::DARKBLUE, 0.5));
-        draw_text(
-            "MOUSE LEFT BUTTON to CYCLE PROCEDURAL MODELS",
-            40,
-            410,
-            10,
-            Color::BLUE,
-        );
-
-        match current_model {
-            0 => draw_text("PLANE", 680, 10, 20, Color::DARKBLUE),
-            1 => draw_text("CUBE", 680, 10, 20, Color::DARKBLUE),
-            2 => draw_text("SPHERE", 680, 10, 20, Color::DARKBLUE),
-            3 => draw_text("HEMISPHERE", 640, 10, 20, Color::DARKBLUE),
-            4 => draw_text("CYLINDER", 680, 10, 20, Color::DARKBLUE),
-            5 => draw_text("TORUS", 680, 10, 20, Color::DARKBLUE),
-            6 => draw_text("KNOT", 680, 10, 20, Color::DARKBLUE),
-            7 => draw_text("POLY", 680, 10, 20, Color::DARKBLUE),
-            8 => draw_text("Custom (triangle)", 580, 10, 20, Color::DARKBLUE),
-            _ => {}
-        }
-
-        end_drawing();
+        handle.begin_drawing_with(|mut draw_handle| {
+            draw_handle.clear_background(Color::RAYWHITE);
+            draw_handle.begin_mode_3d_with(camera, |mut draw_3d_handle| {
+                draw_3d_handle
+                    .get_handle()
+                    .get(models[current_model])
+                    .unwrap()
+                    .draw(&mut draw_3d_handle, position, 1.0, Color::WHITE);
+                draw_handle.draw_grid(10, 1.0);
+            });
+            draw_handle.draw_rectangle(30, 400, 310, 30, fade(Color::SKYBLUE, 0.5));
+            draw_handle.draw_rectangle_lines(30, 400, 310, 30, fade(Color::DARKBLUE, 0.5));
+            draw_handle.draw_text(
+                "MOUSE LEFT BUTTON to CYCLE PROCEDURAL MODELS",
+                40,
+                410,
+                10,
+                Color::BLUE,
+            );
+            match current_model {
+                0 => draw_handle.draw_text("PLANE", 680, 10, 20, Color::DARKBLUE),
+                1 => draw_handle.draw_text("CUBE", 680, 10, 20, Color::DARKBLUE),
+                2 => draw_handle.draw_text("SPHERE", 680, 10, 20, Color::DARKBLUE),
+                3 => draw_handle.draw_text("HEMISPHERE", 640, 10, 20, Color::DARKBLUE),
+                4 => draw_handle.draw_text("CYLINDER", 680, 10, 20, Color::DARKBLUE),
+                5 => draw_handle.draw_text("TORUS", 680, 10, 20, Color::DARKBLUE),
+                6 => draw_handle.draw_text("KNOT", 680, 10, 20, Color::DARKBLUE),
+                7 => draw_handle.draw_text("POLY", 680, 10, 20, Color::DARKBLUE),
+                8 => draw_handle.draw_text("Custom (triangle)", 580, 10, 20, Color::DARKBLUE),
+                _ => unreachable!(),
+            }
+        });
     }
 }

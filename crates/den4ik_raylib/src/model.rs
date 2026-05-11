@@ -43,6 +43,7 @@ impl Model {
 
     pub fn draw(
         &self,
+        _draw_3d_handle: &mut crate::Draw3DHandle,
         position: crate::ffi::Vector3,
         scale: f32,
         tint: impl crate::color::ToRlColor,

@@ -19,7 +19,7 @@ pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_PREFILTER as MATERIAL_MAP_PREF
 pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_ROUGHNESS as MATERIAL_MAP_ROUGHNESS;
 
 pub struct Material {
-    inner: crate::ffi::Material,
+    pub(crate) inner: crate::ffi::Material,
 }
 
 impl Material {

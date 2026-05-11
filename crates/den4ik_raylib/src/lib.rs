@@ -20,6 +20,16 @@ pub struct Draw3DHandle<'l, 'h> {
     handle: &'l mut DrawHandle<'h>,
 }
 
+impl<'l, 'h> Draw3DHandle<'l, 'h> {
+    pub fn get_handle(&self) -> &RaylibHandle {
+        self.handle.get_handle()
+    }
+
+    pub fn get_handle_mut(&mut self) -> &mut RaylibHandle {
+        self.handle.get_handle_mut()
+    }
+}
+
 impl<'l, 'h> Drop for Draw3DHandle<'l, 'h> {
     fn drop(&mut self) {
         unsafe { crate::ffi::EndMode3D() }
@@ -31,13 +41,29 @@ pub struct DrawHandle<'h> {
 }
 
 impl<'h> DrawHandle<'h> {
+    pub fn get_handle(&self) -> &RaylibHandle {
+        self.handle
+    }
+
+    pub fn get_handle_mut(&mut self) -> &mut RaylibHandle {
+        self.handle
+    }
+
     pub fn clear_background(&mut self, color: impl color::ToRlColor) {
         unsafe { crate::ffi::ClearBackground(color.to_rl_color()) }
     }
 
-    pub fn begin_mode_3d<'l>(&mut self, camera: crate::ffi::Camera3D) -> Draw3DHandle<'l, 'h> {
+    pub fn begin_mode_3d<'l>(&'l mut self, camera: crate::ffi::Camera3D) -> Draw3DHandle<'l, 'h> {
         unsafe { crate::ffi::BeginMode3D(camera) }
         Draw3DHandle { handle: self }
+    }
+
+    pub fn begin_mode_3d_with<F, R>(&mut self, camera: crate::ffi::Camera3D, f: F) -> R
+    where
+        F: FnOnce(Draw3DHandle) -> R,
+    {
+        let handle = self.begin_mode_3d(camera);
+        f(handle)
     }
 
     pub fn draw_grid(&mut self, slices: i32, spacing: f32) {

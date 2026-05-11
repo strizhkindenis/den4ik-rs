@@ -128,7 +128,7 @@ impl Mesh {
         }))
     }
 
-    pub fn upload(&mut self, _handle: &mut crate::RaylibHandle, dynamic: bool) {
+    pub fn upload(&mut self, dynamic: bool) {
         unsafe { crate::ffi::UploadMesh(&mut self.inner, dynamic) }
     }
 
