@@ -1,108 +1,78 @@
 use den4ik_raylib::{
-    Container, RaylibHandle,
-    allocator::Allocator,
+    RaylibHandle,
     color::{Color, fade},
+    container::{Container, ContainerId},
     core::{
         CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT, Vector3, begin_drawing,
         begin_mode_3d, clear_background, draw_grid, draw_rectangle, draw_rectangle_lines,
         draw_text, end_drawing, end_mode_3d, is_key_pressed, is_mouse_button_pressed,
         update_camera,
     },
-    image::Image,
+    image::{Image, ImageId},
     material::MATERIAL_MAP_DIFFUSE,
-    mesh::{Mesh, MeshConfigBuilder},
-    model::Model,
-    texture::Texture2D,
+    mesh::{Mesh, MeshConfigBuilder, MeshId},
+    model::{Model, ModelId},
+    texture::{Texture2D, Texture2DId},
 };
 
 const NUM_MODELS: usize = 9;
 
-fn gen_mesh_custom(handle: &mut RaylibHandle, allocator: &mut Allocator) -> usize {
-    let config = MeshConfigBuilder::new(3, 1)
-        .with_texcoords2()
-        .with_normals()
-        .build();
-    let mesh_id = Mesh::new(handle, config, allocator).unwrap();
-    let mesh = handle.meshes.get_mut(mesh_id).unwrap();
-
-    let vertices = unsafe { std::slice::from_raw_parts_mut(mesh.inner.vertices, 9) };
-    let texcoords = unsafe { std::slice::from_raw_parts_mut(mesh.inner.texcoords, 6) };
-    let normals = unsafe { std::slice::from_raw_parts_mut(mesh.inner.normals, 9) };
-
-    // Vertex at (0, 0, 0)
-    vertices[0] = 0.0;
-    vertices[1] = 0.0;
-    vertices[2] = 0.0;
-    normals[0] = 0.0;
-    normals[1] = 1.0;
-    normals[2] = 0.0;
-    texcoords[0] = 0.0;
-    texcoords[1] = 0.0;
-
-    // Vertex at (1, 0, 2)
-    vertices[3] = 1.0;
-    vertices[4] = 0.0;
-    vertices[5] = 2.0;
-    normals[3] = 0.0;
-    normals[4] = 1.0;
-    normals[5] = 0.0;
-    texcoords[2] = 0.5;
-    texcoords[3] = 1.0;
-
-    // Vertex at (2, 0, 0)
-    vertices[6] = 2.0;
-    vertices[7] = 0.0;
-    vertices[8] = 0.0;
-    normals[6] = 0.0;
-    normals[7] = 1.0;
-    normals[8] = 0.0;
-    texcoords[4] = 1.0;
-    texcoords[5] = 0.0;
-
-    mesh.upload(handle, false);
+fn gen_mesh_custom(handle: &mut RaylibHandle) -> MeshId {
+    let config = MeshConfigBuilder::new(3, 1).with_normals().build().unwrap();
+    let mesh_id = Mesh::new(handle, config).unwrap();
+    {
+        let mesh = handle.meshes.get_mut(mesh_id).unwrap();
+        mesh.get_vertices_mut()[0] = [0.0, 0.0, 0.0];
+        mesh.get_normals_mut()[0] = [0.0, 1.0, 0.0];
+        mesh.get_texcoords_mut()[0] = [0.0, 0.0];
+        mesh.get_vertices_mut()[1] = [1.0, 0.0, 2.0];
+        mesh.get_normals_mut()[1] = [0.0, 1.0, 0.0];
+        mesh.get_texcoords_mut()[1] = [0.5, 1.0];
+        mesh.get_vertices_mut()[2] = [2.0, 0.0, 0.0];
+        mesh.get_normals_mut()[2] = [0.0, 1.0, 0.0];
+        mesh.get_texcoords_mut()[2] = [1.0, 0.0];
+        mesh.upload(handle, false);
+    }
     mesh_id
+}
+
+fn get_texture(handle: &mut RaylibHandle) -> Texture2DId {
+    let img_id: ImageId = Image::gen_checked(handle, 2, 2, 1, 1, Color::RED, Color::GREEN);
+    let texture_id: Texture2DId = Texture2D::load_from_image(handle, img_id).unwrap();
+    <RaylibHandle as Container<Image, ImageId>>::remove(handle, img_id);
+    texture_id
+}
+
+fn get_models(handle: &mut RaylibHandle) -> Vec<ModelId> {
+    let texture_id = get_texture(handle);
+    let mut models = Vec::new();
+    let mesh_id = Mesh::gen_plane(handle, 2.0, 2.0, 4, 3).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_cube(handle, 2.0, 1.0, 2.0).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_sphere(handle, 2.0, 32, 32).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_hemisphere(handle, 2.0, 16, 16).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_cylinder(handle, 1.0, 2.0, 16).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_torus(handle, 0.25, 4.0, 16, 32).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_knot(handle, 1.0, 2.0, 16, 128).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = Mesh::gen_poly(handle, 5, 2.0).unwrap();
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    let mesh_id = gen_mesh_custom(handle);
+    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+    for model_id in &models {
+        handle.set_model_material_texture(*model_id, 0, MATERIAL_MAP_DIFFUSE as i32, texture_id);
+    }
+    models
 }
 
 fn main() {
     let mut handle = RaylibHandle::new(800, 450, "raylib [models] example - mesh generation");
-    let img_id = Image::gen_checked(&mut handle, 2, 2, 1, 1, Color::RED, Color::GREEN);
-    let texture_id = Texture2D::load_from_image(&mut handle, img_id).unwrap();
-    <handle as Container<Image>>::remove(img_id);
-
-    let mut models = [0usize; NUM_MODELS];
-
-    let mesh_id = Mesh::gen_plane(&mut handle, 2.0, 2.0, 4, 3);
-    models[0] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_cube(&mut handle, 2.0, 1.0, 2.0);
-    models[1] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_sphere(&mut handle, 2.0, 32, 32);
-    models[2] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_hemisphere(&mut handle, 2.0, 16, 16);
-    models[3] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_cylinder(&mut handle, 1.0, 2.0, 16);
-    models[4] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_torus(&mut handle, 0.25, 4.0, 16, 32);
-    models[5] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_knot(&mut handle, 1.0, 2.0, 16, 128);
-    models[6] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = Mesh::gen_poly(&mut handle, 5, 2.0);
-    models[7] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    let mesh_id = gen_mesh_custom(&mut handle, &mut allocator);
-    models[8] = Model::load_from_mesh(&mut handle, mesh_id).unwrap();
-
-    for i in 0..NUM_MODELS {
-        let model = handle.models.get_mut(models[i]).unwrap();
-        model.get_materials_mut()[0].set_texture(&handle, MATERIAL_MAP_DIFFUSE as i32, texture_id);
-    }
-
+    let models = get_models(&mut handle);
     let mut camera = Camera {
         position: Vector3 {
             x: 5.0,
@@ -122,32 +92,31 @@ fn main() {
         fovy: 45.0,
         projection: 0,
     };
-
     let position = Vector3 {
         x: 0.0,
         y: 0.0,
         z: 0.0,
     };
-    let mut current_model: i32 = 0;
-
+    let mut current_model: usize = 0;
     handle.set_target_fps(60);
 
     while !handle.window_should_close() {
         update_camera(&mut camera, CAMERA_ORBITAL as i32);
 
         if is_mouse_button_pressed(MOUSE_BUTTON_LEFT as i32) {
-            current_model = (current_model + 1) % (NUM_MODELS as i32);
+            current_model = (current_model + 1) % models.len();
         }
 
         if is_key_pressed(KEY_RIGHT as i32) {
             current_model += 1;
-            if current_model >= NUM_MODELS as i32 {
+            if current_model >= models.len() {
                 current_model = 0;
             }
         } else if is_key_pressed(KEY_LEFT as i32) {
-            current_model -= 1;
-            if current_model < 0 {
-                current_model = (NUM_MODELS as i32) - 1;
+            if current_model == 0 {
+                current_model = models.len() - 1;
+            } else {
+                current_model -= 1;
             }
         }
 
@@ -188,5 +157,4 @@ fn main() {
 
         end_drawing();
     }
-    // CloseWindow is called automatically via Drop on RaylibHandle
 }

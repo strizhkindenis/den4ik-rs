@@ -2,6 +2,7 @@ use std::{num::NonZeroUsize, path::Path};
 
 use crate::container::{Container, ContainerId};
 
+#[derive(Debug)]
 pub enum ModelError {
     EmptyModel,
     PathContainsNullByte,

@@ -1,6 +1,7 @@
 use crate::RaylibHandle;
 use std::alloc::Layout;
 
+#[derive(Debug)]
 pub enum AllocatorError {
     OOM,
     SizeTooBig,

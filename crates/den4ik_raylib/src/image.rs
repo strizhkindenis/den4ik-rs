@@ -14,7 +14,7 @@ impl Image {
     pub fn load<P: AsRef<Path>>(
         handle: &mut crate::RaylibHandle,
         path: P,
-    ) -> Result<usize, ImageError> {
+    ) -> Result<ImageId, ImageError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ImageError::PathContainsNullByte)?;
         let inner = unsafe { crate::ffi::LoadImage(path_c.as_ptr()) };
@@ -28,7 +28,7 @@ impl Image {
         height: u32,
         format: i32,
         header_size: u32,
-    ) -> Result<usize, ImageError> {
+    ) -> Result<ImageId, ImageError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ImageError::PathContainsNullByte)?;
         let inner = unsafe {
@@ -47,7 +47,7 @@ impl Image {
         handle: &mut crate::RaylibHandle,
         path: P,
         frames: &mut u32,
-    ) -> Result<usize, ImageError> {
+    ) -> Result<ImageId, ImageError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ImageError::PathContainsNullByte)?;
         let mut frames_i32: i32 = 0;
@@ -61,7 +61,7 @@ impl Image {
         file_type: &str,
         file_data: &[u8],
         frames: &mut u32,
-    ) -> Result<usize, ImageError> {
+    ) -> Result<ImageId, ImageError> {
         let file_type_c =
             std::ffi::CString::new(file_type).map_err(|_| ImageError::PathContainsNullByte)?;
         let mut frames_i32: i32 = 0;
@@ -81,7 +81,7 @@ impl Image {
         handle: &mut crate::RaylibHandle,
         file_type: &str,
         file_data: &[u8],
-    ) -> Result<usize, ImageError> {
+    ) -> Result<ImageId, ImageError> {
         let file_type_c =
             std::ffi::CString::new(file_type).map_err(|_| ImageError::PathContainsNullByte)?;
         let inner = unsafe {
@@ -94,13 +94,13 @@ impl Image {
         Ok(handle.add(Self { inner }))
     }
 
-    pub fn load_from_texture(handle: &mut crate::RaylibHandle, texture_id: usize) -> Option<usize> {
+    pub fn load_from_texture(handle: &mut crate::RaylibHandle, texture_id: crate::texture::Texture2DId) -> Option<ImageId> {
         let texture = handle.textures.get(texture_id)?;
         let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
         Some(handle.add(Self { inner }))
     }
 
-    pub fn load_from_screen(handle: &mut crate::RaylibHandle) -> usize {
+    pub fn load_from_screen(handle: &mut crate::RaylibHandle) -> ImageId {
         let inner = unsafe { crate::ffi::LoadImageFromScreen() };
         handle.add(Self { inner })
     }
@@ -144,7 +144,7 @@ impl Image {
         width: u32,
         height: u32,
         color: impl crate::color::ToRlColor,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageColor(
                 width.try_into().unwrap(),
@@ -162,7 +162,7 @@ impl Image {
         direction: i32,
         start: impl crate::color::ToRlColor,
         end: impl crate::color::ToRlColor,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageGradientLinear(
                 width.try_into().unwrap(),
@@ -182,7 +182,7 @@ impl Image {
         density: f32,
         inner_color: impl crate::color::ToRlColor,
         outer_color: impl crate::color::ToRlColor,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageGradientRadial(
                 width.try_into().unwrap(),
@@ -202,7 +202,7 @@ impl Image {
         density: f32,
         inner_color: impl crate::color::ToRlColor,
         outer_color: impl crate::color::ToRlColor,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageGradientSquare(
                 width.try_into().unwrap(),
@@ -223,7 +223,7 @@ impl Image {
         checks_y: u32,
         col1: impl crate::color::ToRlColor,
         col2: impl crate::color::ToRlColor,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageChecked(
                 width.try_into().unwrap(),
@@ -242,7 +242,7 @@ impl Image {
         width: u32,
         height: u32,
         factor: f32,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageWhiteNoise(
                 width.try_into().unwrap(),
@@ -260,7 +260,7 @@ impl Image {
         offset_x: i32,
         offset_y: i32,
         scale: f32,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImagePerlinNoise(
                 width.try_into().unwrap(),
@@ -278,7 +278,7 @@ impl Image {
         width: u32,
         height: u32,
         tile_size: u32,
-    ) -> usize {
+    ) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageCellular(
                 width.try_into().unwrap(),
@@ -294,7 +294,7 @@ impl Image {
         width: u32,
         height: u32,
         text: &str,
-    ) -> Result<usize, ImageError> {
+    ) -> Result<ImageId, ImageError> {
         let text_c = std::ffi::CString::new(text).map_err(|_| ImageError::PathContainsNullByte)?;
         let inner = unsafe {
             crate::ffi::GenImageText(
@@ -326,7 +326,7 @@ impl ContainerId for ImageId {
     }
 }
 
-impl Container<Image> for crate::RaylibHandle {
+impl Container<Image, ImageId> for crate::RaylibHandle {
     fn add(&mut self, item: Image) -> ImageId {
         self.images.add(item)
     }

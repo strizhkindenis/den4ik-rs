@@ -1,7 +1,4 @@
-use crate::{
-    allocator::Allocator,
-    container::{Container, ContainerId},
-};
+use crate::container::{Container, ContainerId};
 use std::path::Path;
 
 pub enum TextureError {
@@ -25,7 +22,7 @@ impl Texture2D {
 
     pub fn load_from_image(
         handle: &mut crate::RaylibHandle,
-        image_id: usize,
+        image_id: crate::image::ImageId,
     ) -> Option<Texture2DId> {
         let image = handle.images.get(image_id)?;
         let inner = unsafe { crate::ffi::LoadTextureFromImage(image.inner) };
@@ -34,9 +31,9 @@ impl Texture2D {
 
     pub fn load_cubemap(
         handle: &mut crate::RaylibHandle,
-        image_id: usize,
+        image_id: crate::image::ImageId,
         layout: i32,
-    ) -> Option<usize> {
+    ) -> Option<Texture2DId> {
         let image = handle.images.get(image_id)?;
         let inner = unsafe { crate::ffi::LoadTextureCubemap(image.inner, layout) };
         Some(handle.add(Self { inner }))

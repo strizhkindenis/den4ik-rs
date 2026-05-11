@@ -23,16 +23,7 @@ pub(crate) struct VecConainer<T: Unloadable, Id: ContainerId> {
 }
 
 impl<T: Unloadable, Id: ContainerId> VecConainer<T, Id> {
-    fn new() -> Self {
-        Self {
-            items: Vec::new(),
-            available: Vec::new(),
-        }
-    }
-}
-
-impl<T: Unloadable, Id: ContainerId> VecConainer<T, Id> {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             items: Vec::new(),
             available: Vec::new(),

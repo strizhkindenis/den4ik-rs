@@ -23,7 +23,7 @@ pub struct Material {
 }
 
 impl Material {
-    pub fn load_default(handle: &mut crate::RaylibHandle) -> usize {
+    pub fn load_default(handle: &mut crate::RaylibHandle) -> MaterialId {
         let inner = unsafe { crate::ffi::LoadMaterialDefault() };
         handle.add(Self { inner })
     }
@@ -31,12 +31,12 @@ impl Material {
     pub fn load_materials<P: AsRef<Path>>(
         handle: &mut crate::RaylibHandle,
         path: P,
-    ) -> Result<Vec<usize>, MaterialError> {
+    ) -> Result<Vec<MaterialId>, MaterialError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| MaterialError::PathContainsNullByte)?;
         let mut count: i32 = 0;
         let materials_ptr = unsafe { crate::ffi::LoadMaterials(path_c.as_ptr(), &mut count) };
-        let mut ids = Vec::with_capacity(count as usize);
+        let mut ids: Vec<MaterialId> = Vec::with_capacity(count as usize);
         for i in 0..count {
             let inner = unsafe { *materials_ptr.add(i as usize) };
             ids.push(handle.add(Self { inner }));
@@ -53,7 +53,7 @@ impl Material {
         &mut self,
         handle: &crate::RaylibHandle,
         map_type: i32,
-        texture_id: usize,
+        texture_id: crate::texture::Texture2DId,
     ) -> Option<()> {
         let texture = handle.textures.get(texture_id)?;
         unsafe { crate::ffi::SetMaterialTexture(&mut self.inner, map_type, texture.inner) }
