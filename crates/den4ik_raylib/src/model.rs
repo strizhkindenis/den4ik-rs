@@ -43,12 +43,12 @@ impl Model {
 
     pub fn draw(
         &self,
-        _draw_3d_handle: &mut crate::Draw3DHandle,
-        position: crate::ffi::Vector3,
+        _draw_3d_handle: &crate::Draw3DHandle,
+        position: crate::math::Vector3,
         scale: f32,
         tint: impl crate::color::ToRlColor,
     ) {
-        unsafe { crate::ffi::DrawModel(self.inner, position, scale, tint.to_rl_color()) }
+        unsafe { crate::ffi::DrawModel(self.inner, position.into(), scale, tint.to_rl_color()) }
     }
 
     pub fn get_mesh_count(&self) -> NonZeroUsize {

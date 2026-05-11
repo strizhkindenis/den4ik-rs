@@ -8,9 +8,10 @@ pub mod image;
 pub mod material;
 pub mod mesh;
 pub mod model;
+pub mod math;
 pub mod texture;
 
-pub(crate) trait Unloadable {
+pub trait Unloadable {
     fn unload(item: Self);
 }
 
@@ -27,6 +28,10 @@ impl<'l, 'h> Draw3DHandle<'l, 'h> {
 
     pub fn get_handle_mut(&mut self) -> &mut RaylibHandle {
         self.handle.get_handle_mut()
+    }
+
+    pub fn draw_grid(&self, slices: i32, spacing: f32) {
+        unsafe { crate::ffi::DrawGrid(slices, spacing) }
     }
 }
 
@@ -53,21 +58,17 @@ impl<'h> DrawHandle<'h> {
         unsafe { crate::ffi::ClearBackground(color.to_rl_color()) }
     }
 
-    pub fn begin_mode_3d<'l>(&'l mut self, camera: crate::ffi::Camera3D) -> Draw3DHandle<'l, 'h> {
-        unsafe { crate::ffi::BeginMode3D(camera) }
+    pub fn begin_mode_3d<'l>(&'l mut self, camera: crate::core::Camera) -> Draw3DHandle<'l, 'h> {
+        unsafe { crate::ffi::BeginMode3D(camera.inner) }
         Draw3DHandle { handle: self }
     }
 
-    pub fn begin_mode_3d_with<F, R>(&mut self, camera: crate::ffi::Camera3D, f: F) -> R
+    pub fn begin_mode_3d_with<F, R>(&mut self, camera: crate::core::Camera, f: F) -> R
     where
         F: FnOnce(Draw3DHandle) -> R,
     {
         let handle = self.begin_mode_3d(camera);
         f(handle)
-    }
-
-    pub fn draw_grid(&mut self, slices: i32, spacing: f32) {
-        unsafe { crate::ffi::DrawGrid(slices, spacing) }
     }
 
     pub fn draw_rectangle(
@@ -152,7 +153,7 @@ impl RaylibHandle {
         unsafe { crate::ffi::SetTargetFPS(fps) }
     }
 
-    pub fn begin_drawing(&mut self) -> DrawHandle {
+    pub fn begin_drawing(&mut self) -> DrawHandle<'_> {
         unsafe { crate::ffi::BeginDrawing() }
         DrawHandle { handle: self }
     }
@@ -178,6 +179,19 @@ impl RaylibHandle {
         let mat = model.get_materials_mut().get_mut(material_idx)?;
         unsafe { crate::ffi::SetMaterialTexture(&mut mat.inner, map_type, tex_inner) }
         Some(())
+    }
+
+    // Input & Camera - Enforcing Thread Safety
+    pub fn is_mouse_button_pressed(&self, button: i32) -> bool {
+        unsafe { crate::ffi::IsMouseButtonPressed(button) }
+    }
+
+    pub fn is_key_pressed(&self, key: i32) -> bool {
+        unsafe { crate::ffi::IsKeyPressed(key) }
+    }
+
+    pub fn update_camera(&self, camera: &mut crate::core::Camera, mode: i32) {
+        unsafe { crate::ffi::UpdateCamera(&mut camera.inner as *mut _, mode) }
     }
 }
 

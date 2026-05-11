@@ -14,5 +14,13 @@ name = "den4ik_math"
 version = "0.1.0"
 
 [[package]]
+name = "den4ik_raylib"
+version = "0.1.0"
+
+[[package]]
+name = "den4ik_scgi"
+version = "0.1.0"
+
+[[package]]
 name = "den4ik_thread_pool"
 version = "0.1.0"

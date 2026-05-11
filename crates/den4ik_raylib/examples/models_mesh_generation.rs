@@ -1,19 +1,17 @@
 use den4ik_raylib::{
     RaylibHandle,
     color::{Color, fade},
-    container::{Container, ContainerId},
+    container::Container,
     core::{
-        CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT, Vector3, is_key_pressed,
-        is_mouse_button_pressed, update_camera,
+        CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT,
     },
+    math::Vector3,
     image::{Image, ImageId},
     material::MATERIAL_MAP_DIFFUSE,
     mesh::{Mesh, MeshConfigBuilder, MeshId},
     model::{Model, ModelId},
     texture::{Texture2D, Texture2DId},
 };
-
-const NUM_MODELS: usize = 9;
 
 fn gen_mesh_custom(handle: &mut RaylibHandle) -> MeshId {
     let config = MeshConfigBuilder::new(3, 1).with_normals().build().unwrap();
@@ -71,45 +69,29 @@ fn get_models(handle: &mut RaylibHandle) -> Vec<ModelId> {
 fn main() {
     let mut handle = RaylibHandle::new(800, 450, "raylib [models] example - mesh generation");
     let models = get_models(&mut handle);
-    let mut camera = Camera {
-        position: Vector3 {
-            x: 5.0,
-            y: 5.0,
-            z: 5.0,
-        },
-        target: Vector3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        },
-        up: Vector3 {
-            x: 0.0,
-            y: 1.0,
-            z: 0.0,
-        },
-        fovy: 45.0,
-        projection: 0,
-    };
-    let position = Vector3 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    };
+    let mut camera = Camera::new(
+        Vector3::new(5.0, 5.0, 5.0),
+        Vector3::new(0.0, 0.0, 0.0),
+        Vector3::new(0.0, 1.0, 0.0),
+        45.0,
+        0,
+    );
+    let position = Vector3::new(0.0, 0.0, 0.0);
     let mut current_model: usize = 0;
     handle.set_target_fps(60);
     while !handle.window_should_close() {
-        update_camera(&mut camera, CAMERA_ORBITAL as i32);
+        handle.update_camera(&mut camera, CAMERA_ORBITAL as i32);
 
-        if is_mouse_button_pressed(MOUSE_BUTTON_LEFT as i32) {
+        if handle.is_mouse_button_pressed(MOUSE_BUTTON_LEFT as i32) {
             current_model = (current_model + 1) % models.len();
         }
 
-        if is_key_pressed(KEY_RIGHT as i32) {
+        if handle.is_key_pressed(KEY_RIGHT as i32) {
             current_model += 1;
             if current_model >= models.len() {
                 current_model = 0;
             }
-        } else if is_key_pressed(KEY_LEFT as i32) {
+        } else if handle.is_key_pressed(KEY_LEFT as i32) {
             if current_model == 0 {
                 current_model = models.len() - 1;
             } else {
@@ -118,13 +100,10 @@ fn main() {
         }
         handle.begin_drawing_with(|mut draw_handle| {
             draw_handle.clear_background(Color::RAYWHITE);
-            draw_handle.begin_mode_3d_with(camera, |mut draw_3d_handle| {
-                draw_3d_handle
-                    .get_handle()
-                    .get(models[current_model])
-                    .unwrap()
-                    .draw(&mut draw_3d_handle, position, 1.0, Color::WHITE);
-                draw_handle.draw_grid(10, 1.0);
+            draw_handle.begin_mode_3d_with(camera, |draw_3d_handle| {
+                let model = draw_3d_handle.get_handle().get(models[current_model]).unwrap();
+                model.draw(&draw_3d_handle, position, 1.0, Color::WHITE);
+                draw_3d_handle.draw_grid(10, 1.0);
             });
             draw_handle.draw_rectangle(30, 400, 310, 30, fade(Color::SKYBLUE, 0.5));
             draw_handle.draw_rectangle_lines(30, 400, 310, 30, fade(Color::DARKBLUE, 0.5));
