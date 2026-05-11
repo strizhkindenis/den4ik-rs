@@ -5,7 +5,6 @@ pub enum MaterialError {
     PathContainsNullByte,
 }
 
-#[repr(transparent)]
 pub struct Material {
     inner: crate::ffi::Material,
 }

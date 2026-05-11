@@ -1,6 +1,8 @@
 mod ffi;
 
 pub mod allocator;
+pub mod color;
+pub mod image;
 pub mod material;
 pub mod mesh;
 pub mod model;
@@ -90,6 +92,7 @@ pub struct RaylibHandle {
     pub(crate) materials: VecConainer<material::Material>,
     pub(crate) meshes: VecConainer<mesh::Mesh>,
     pub(crate) models: VecConainer<model::Model>,
+    pub(crate) images: VecConainer<image::Image>,
 }
 
 impl RaylibHandle {
@@ -98,6 +101,7 @@ impl RaylibHandle {
             materials: VecConainer::new(),
             meshes: VecConainer::new(),
             models: VecConainer::new(),
+            images: VecConainer::new(),
         }
     }
 }
