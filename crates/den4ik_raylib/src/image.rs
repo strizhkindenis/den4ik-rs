@@ -1,4 +1,4 @@
-use crate::Container;
+use crate::container::{Container, ContainerId};
 use std::path::Path;
 
 pub enum ImageError {
@@ -7,7 +7,7 @@ pub enum ImageError {
 }
 
 pub struct Image {
-    inner: crate::ffi::Image,
+    pub(crate) inner: crate::ffi::Image,
 }
 
 impl Image {
@@ -94,12 +94,10 @@ impl Image {
         Ok(handle.add(Self { inner }))
     }
 
-    pub fn load_from_texture(
-        handle: &mut crate::RaylibHandle,
-        texture: crate::ffi::Texture2D,
-    ) -> usize {
-        let inner = unsafe { crate::ffi::LoadImageFromTexture(texture) };
-        handle.add(Self { inner })
+    pub fn load_from_texture(handle: &mut crate::RaylibHandle, texture_id: usize) -> Option<usize> {
+        let texture = handle.textures.get(texture_id)?;
+        let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
+        Some(handle.add(Self { inner }))
     }
 
     pub fn load_from_screen(handle: &mut crate::RaylibHandle) -> usize {
@@ -315,24 +313,37 @@ impl crate::Unloadable for Image {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImageId(usize);
+
+impl ContainerId for ImageId {
+    fn to_usize(self) -> usize {
+        self.0
+    }
+
+    fn from_usize(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 impl Container<Image> for crate::RaylibHandle {
-    fn add(&mut self, item: Image) -> usize {
+    fn add(&mut self, item: Image) -> ImageId {
         self.images.add(item)
     }
 
-    fn remove(&mut self, id: usize) -> bool {
+    fn remove(&mut self, id: ImageId) -> bool {
         self.images.remove(id)
     }
 
-    unsafe fn take(&mut self, id: usize) -> Option<Image> {
+    unsafe fn take(&mut self, id: ImageId) -> Option<Image> {
         unsafe { self.images.take(id) }
     }
 
-    fn get(&self, id: usize) -> Option<&Image> {
+    fn get(&self, id: ImageId) -> Option<&Image> {
         self.images.get(id)
     }
 
-    fn get_mut(&mut self, id: usize) -> Option<&mut Image> {
+    fn get_mut(&mut self, id: ImageId) -> Option<&mut Image> {
         self.images.get_mut(id)
     }
 }

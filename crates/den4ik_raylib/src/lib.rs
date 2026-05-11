@@ -2,106 +2,68 @@ mod ffi;
 
 pub mod allocator;
 pub mod color;
+pub mod container;
+pub mod core;
 pub mod image;
 pub mod material;
 pub mod mesh;
 pub mod model;
+pub mod texture;
 
 pub(crate) trait Unloadable {
     fn unload(item: Self);
 }
 
-pub trait Container<T> {
-    fn add(&mut self, item: T) -> usize;
-    fn remove(&mut self, id: usize) -> bool;
-    unsafe fn take(&mut self, id: usize) -> Option<T>;
-    fn get(&self, id: usize) -> Option<&T>;
-    fn get_mut(&mut self, id: usize) -> Option<&mut T>;
-}
-
-pub(crate) struct VecConainer<T: Unloadable> {
-    items: Vec<T>,
-    available: Vec<usize>,
-}
-
-impl<T: Unloadable> VecConainer<T> {
-    fn new() -> Self {
-        Self {
-            items: Vec::new(),
-            available: Vec::new(),
-        }
-    }
-}
-
-impl<T: Unloadable> Container<T> for VecConainer<T> {
-    fn add(&mut self, item: T) -> usize {
-        match self.available.pop() {
-            Some(id) => {
-                self.items[id] = item;
-                id
-            }
-            None => {
-                let id = self.items.len();
-                self.items.push(item);
-                id
-            }
-        }
-    }
-
-    fn remove(&mut self, id: usize) -> bool {
-        match unsafe { self.take(id) } {
-            Some(item) => {
-                T::unload(item);
-                true
-            }
-            None => false,
-        }
-    }
-
-    unsafe fn take(&mut self, id: usize) -> Option<T> {
-        match self.get_mut(id) {
-            Some(item) => {
-                let item = unsafe { std::mem::transmute_copy(item) };
-                self.available.push(id);
-                Some(item)
-            }
-            None => None,
-        }
-    }
-
-    fn get(&self, id: usize) -> Option<&T> {
-        self.items.get(id)
-    }
-
-    fn get_mut(&mut self, id: usize) -> Option<&mut T> {
-        self.items.get_mut(id)
-    }
-}
-
-impl<T: Unloadable> Drop for VecConainer<T> {
-    fn drop(&mut self) {
-        for (id, item) in self.items.drain(..).enumerate() {
-            if !self.available.contains(&id) {
-                T::unload(item);
-            }
-        }
-    }
-}
+use container::{ContainerId, VecConainer};
 
 pub struct RaylibHandle {
-    pub(crate) materials: VecConainer<material::Material>,
-    pub(crate) meshes: VecConainer<mesh::Mesh>,
-    pub(crate) models: VecConainer<model::Model>,
-    pub(crate) images: VecConainer<image::Image>,
+    pub(crate) materials: VecConainer<material::Material, material::MaterialId>,
+    pub(crate) meshes: VecConainer<mesh::Mesh, mesh::MeshId>,
+    pub(crate) models: VecConainer<model::Model, model::ModelId>,
+    pub(crate) images: VecConainer<image::Image, image::ImageId>,
+    pub(crate) textures: VecConainer<texture::Texture2D, texture::TextureId>,
+    pub(crate) render_textures: VecConainer<texture::RenderTexture2D, texture::RenderTextureId>,
 }
 
 impl RaylibHandle {
-    pub fn new() -> Self {
+    pub fn new(width: i32, height: i32, title: &str) -> Self {
+        let title_c = std::ffi::CString::new(title).unwrap();
+        unsafe {
+            crate::ffi::InitWindow(width, height, title_c.as_ptr());
+        }
         Self {
             materials: VecConainer::new(),
             meshes: VecConainer::new(),
             models: VecConainer::new(),
             images: VecConainer::new(),
+            textures: VecConainer::new(),
+            render_textures: VecConainer::new(),
         }
+    }
+
+    pub fn window_should_close(&self) -> bool {
+        unsafe { crate::ffi::WindowShouldClose() }
+    }
+
+    pub fn set_target_fps(&mut self, fps: i32) {
+        unsafe { crate::ffi::SetTargetFPS(fps) }
+    }
+}
+
+impl Drop for RaylibHandle {
+    fn drop(&mut self) {
+        // Unload all GPU/CPU resources before closing the window
+        macro_rules! drain_container {
+            ($field:expr) => {
+                std::mem::swap(&mut $field, &mut VecConainer::new());
+            };
+        }
+        drain_container!(self.render_textures);
+        drain_container!(self.textures);
+        drain_container!(self.images);
+        drain_container!(self.models);
+        drain_container!(self.meshes);
+        drain_container!(self.materials);
+        unsafe { crate::ffi::CloseWindow() }
     }
 }

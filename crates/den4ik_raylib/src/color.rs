@@ -62,3 +62,7 @@ impl Color {
     pub const MAGENTA: Self = Self::new(255, 0, 255, 255);
     pub const RAYWHITE: Self = Self::new(245, 245, 245, 255);
 }
+
+pub fn fade(color: impl ToRlColor, alpha: f32) -> crate::ffi::Color {
+    unsafe { crate::ffi::Fade(color.to_rl_color(), alpha) }
+}

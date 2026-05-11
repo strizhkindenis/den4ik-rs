@@ -1,6 +1,6 @@
 use std::{num::NonZeroUsize, path::Path};
 
-use crate::Container;
+use crate::container::{Container, ContainerId};
 
 pub enum ModelError {
     EmptyModel,
@@ -15,7 +15,7 @@ impl Model {
     pub fn load<P: AsRef<Path>>(
         handle: &mut crate::RaylibHandle,
         path: P,
-    ) -> Result<usize, ModelError> {
+    ) -> Result<ModelId, ModelError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ModelError::PathContainsNullByte)?;
         let inner = unsafe { crate::ffi::LoadModel(path_c.as_ptr()) };
@@ -28,8 +28,8 @@ impl Model {
 
     pub fn load_from_mesh(
         handle: &mut crate::RaylibHandle,
-        mesh_id: usize,
-    ) -> Result<usize, ModelError> {
+        mesh_id: crate::mesh::MeshId,
+    ) -> Result<ModelId, ModelError> {
         let mesh: crate::mesh::Mesh =
             unsafe { handle.take(mesh_id).ok_or(ModelError::EmptyModel)? };
         let inner = unsafe { crate::ffi::LoadModelFromMesh(mesh.into_inner()) };
@@ -38,6 +38,15 @@ impl Model {
         } else {
             Err(ModelError::EmptyModel)
         }
+    }
+
+    pub fn draw(
+        &self,
+        position: crate::ffi::Vector3,
+        scale: f32,
+        tint: impl crate::color::ToRlColor,
+    ) {
+        unsafe { crate::ffi::DrawModel(self.inner, position, scale, tint.to_rl_color()) }
     }
 
     pub fn get_mesh_count(&self) -> NonZeroUsize {
@@ -95,24 +104,37 @@ impl crate::Unloadable for Model {
     }
 }
 
-impl Container<Model> for crate::RaylibHandle {
-    fn add(&mut self, item: Model) -> usize {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ModelId(usize);
+
+impl ContainerId for ModelId {
+    fn to_usize(self) -> usize {
+        self.0
+    }
+
+    fn from_usize(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl Container<Model, ModelId> for crate::RaylibHandle {
+    fn add(&mut self, item: Model) -> ModelId {
         self.models.add(item)
     }
 
-    fn remove(&mut self, id: usize) -> bool {
+    fn remove(&mut self, id: ModelId) -> bool {
         self.models.remove(id)
     }
 
-    unsafe fn take(&mut self, id: usize) -> Option<Model> {
+    unsafe fn take(&mut self, id: ModelId) -> Option<Model> {
         unsafe { self.models.take(id) }
     }
 
-    fn get(&self, id: usize) -> Option<&Model> {
+    fn get(&self, id: ModelId) -> Option<&Model> {
         self.models.get(id)
     }
 
-    fn get_mut(&mut self, id: usize) -> Option<&mut Model> {
+    fn get_mut(&mut self, id: ModelId) -> Option<&mut Model> {
         self.models.get_mut(id)
     }
 }

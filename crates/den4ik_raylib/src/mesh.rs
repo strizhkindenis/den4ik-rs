@@ -1,6 +1,6 @@
 use crate::{
-    Container,
     allocator::{Allocator, AllocatorError},
+    container::{Container, ContainerId},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,7 +84,7 @@ impl Mesh {
     pub fn new(
         handle: &mut crate::RaylibHandle,
         config: MeshConfig,
-    ) -> Result<usize, AllocatorError> {
+    ) -> Result<MeshId, AllocatorError> {
         let allocator = Allocator::new(handle);
         let mut inner = crate::ffi::Mesh {
             vertexCount: config.vertex_count.try_into().unwrap(),
@@ -209,6 +209,158 @@ impl Mesh {
             std::slice::from_raw_parts_mut(self.inner.indices.cast(), self.triangle_count * 3)
         }
     }
+
+    pub fn gen_plane(
+        handle: &mut crate::RaylibHandle,
+        width: f32,
+        length: f32,
+        res_x: u32,
+        res_z: u32,
+    ) -> MeshId {
+        let inner = unsafe {
+            crate::ffi::GenMeshPlane(
+                width,
+                length,
+                res_x.try_into().unwrap(),
+                res_z.try_into().unwrap(),
+            )
+        };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_cube(
+        handle: &mut crate::RaylibHandle,
+        width: f32,
+        height: f32,
+        length: f32,
+    ) -> MeshId {
+        let inner = unsafe { crate::ffi::GenMeshCube(width, height, length) };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_sphere(
+        handle: &mut crate::RaylibHandle,
+        radius: f32,
+        rings: u32,
+        slices: u32,
+    ) -> MeshId {
+        let inner = unsafe {
+            crate::ffi::GenMeshSphere(
+                radius,
+                rings.try_into().unwrap(),
+                slices.try_into().unwrap(),
+            )
+        };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_hemisphere(
+        handle: &mut crate::RaylibHandle,
+        radius: f32,
+        rings: u32,
+        slices: u32,
+    ) -> MeshId {
+        let inner = unsafe {
+            crate::ffi::GenMeshHemiSphere(
+                radius,
+                rings.try_into().unwrap(),
+                slices.try_into().unwrap(),
+            )
+        };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_cylinder(
+        handle: &mut crate::RaylibHandle,
+        radius: f32,
+        height: f32,
+        slices: u32,
+    ) -> MeshId {
+        let inner =
+            unsafe { crate::ffi::GenMeshCylinder(radius, height, slices.try_into().unwrap()) };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_torus(
+        handle: &mut crate::RaylibHandle,
+        radius: f32,
+        size: f32,
+        rad_seg: u32,
+        sides: u32,
+    ) -> MeshId {
+        let inner = unsafe {
+            crate::ffi::GenMeshTorus(
+                radius,
+                size,
+                rad_seg.try_into().unwrap(),
+                sides.try_into().unwrap(),
+            )
+        };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_knot(
+        handle: &mut crate::RaylibHandle,
+        radius: f32,
+        size: f32,
+        rad_seg: u32,
+        sides: u32,
+    ) -> MeshId {
+        let inner = unsafe {
+            crate::ffi::GenMeshKnot(
+                radius,
+                size,
+                rad_seg.try_into().unwrap(),
+                sides.try_into().unwrap(),
+            )
+        };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
+
+    pub fn gen_poly(handle: &mut crate::RaylibHandle, sides: u32, radius: f32) -> MeshId {
+        let inner = unsafe { crate::ffi::GenMeshPoly(sides.try_into().unwrap(), radius) };
+        let m = Self {
+            inner,
+            vertex_count: inner.vertexCount as usize,
+            triangle_count: inner.triangleCount as usize,
+        };
+        handle.add(m)
+    }
 }
 
 impl crate::Unloadable for Mesh {
@@ -217,24 +369,37 @@ impl crate::Unloadable for Mesh {
     }
 }
 
-impl Container<Mesh> for crate::RaylibHandle {
-    fn add(&mut self, item: Mesh) -> usize {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MeshId(usize);
+
+impl ContainerId for MeshId {
+    fn to_usize(self) -> usize {
+        self.0
+    }
+
+    fn from_usize(value: usize) -> Self {
+        Self(value)
+    }
+}
+
+impl Container<Mesh, MeshId> for crate::RaylibHandle {
+    fn add(&mut self, item: Mesh) -> MeshId {
         self.meshes.add(item)
     }
 
-    fn remove(&mut self, id: usize) -> bool {
+    fn remove(&mut self, id: MeshId) -> bool {
         self.meshes.remove(id)
     }
 
-    unsafe fn take(&mut self, id: usize) -> Option<Mesh> {
+    unsafe fn take(&mut self, id: MeshId) -> Option<Mesh> {
         unsafe { self.meshes.take(id) }
     }
 
-    fn get(&self, id: usize) -> Option<&Mesh> {
+    fn get(&self, id: MeshId) -> Option<&Mesh> {
         self.meshes.get(id)
     }
 
-    fn get_mut(&mut self, id: usize) -> Option<&mut Mesh> {
+    fn get_mut(&mut self, id: MeshId) -> Option<&mut Mesh> {
         self.meshes.get_mut(id)
     }
 }
