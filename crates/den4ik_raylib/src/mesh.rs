@@ -132,6 +132,10 @@ impl Mesh {
         unsafe { crate::ffi::UploadMesh(&mut self.inner, dynamic) }
     }
 
+    pub(crate) fn into_inner(self) -> crate::ffi::Mesh {
+        self.inner
+    }
+
     pub fn get_vertices(&self) -> &[[f32; 3]] {
         unsafe { std::slice::from_raw_parts(self.inner.vertices.cast(), self.vertex_count) }
     }
@@ -210,5 +214,27 @@ impl Mesh {
 impl crate::Unloadable for Mesh {
     fn unload(item: Self) {
         unsafe { crate::ffi::UnloadMesh(item.inner) }
+    }
+}
+
+impl Container<Mesh> for crate::RaylibHandle {
+    fn add(&mut self, item: Mesh) -> usize {
+        self.meshes.add(item)
+    }
+
+    fn remove(&mut self, id: usize) -> bool {
+        self.meshes.remove(id)
+    }
+
+    unsafe fn take(&mut self, id: usize) -> Option<Mesh> {
+        unsafe { self.meshes.take(id) }
+    }
+
+    fn get(&self, id: usize) -> Option<&Mesh> {
+        self.meshes.get(id)
+    }
+
+    fn get_mut(&mut self, id: usize) -> Option<&mut Mesh> {
+        self.meshes.get_mut(id)
     }
 }
