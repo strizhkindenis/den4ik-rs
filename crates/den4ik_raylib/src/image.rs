@@ -1,17 +1,12 @@
 use crate::container::{Container, ContainerId};
 use std::path::Path;
 
-
-
 pub struct Image {
     pub(crate) inner: crate::ffi::Image,
 }
 
 impl crate::RaylibHandle {
-    pub fn load_image<P: AsRef<Path>>(
-        &mut self,
-        path: P,
-    ) -> Result<ImageId, crate::RaylibError> {
+    pub fn load_image<P: AsRef<Path>>(&mut self, path: P) -> Result<ImageId, crate::RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
         let inner = unsafe { crate::ffi::LoadImage(path_c.as_ptr()) };
@@ -95,7 +90,10 @@ impl crate::RaylibHandle {
         &mut self,
         texture_id: crate::texture::Texture2DId,
     ) -> Result<ImageId, crate::RaylibError> {
-        let texture = self.textures.get(texture_id).ok_or(crate::RaylibError::InvalidTexture2DId)?;
+        let texture = self
+            .textures
+            .get(texture_id)
+            .ok_or(crate::RaylibError::InvalidTexture2DId)?;
         let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
         Ok(self.images.add(Image { inner }))
     }
@@ -106,20 +104,37 @@ impl crate::RaylibHandle {
     }
 
     pub fn is_image_valid(&self, id: ImageId) -> Result<bool, crate::RaylibError> {
-        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
+        let image = self
+            .images
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidImageId)?;
         Ok(unsafe { crate::ffi::IsImageValid(image.inner) })
     }
 
-    pub fn export_image<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, crate::RaylibError> {
-        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
+    pub fn export_image<P: AsRef<Path>>(
+        &self,
+        id: ImageId,
+        path: P,
+    ) -> Result<bool, crate::RaylibError> {
+        let image = self
+            .images
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidImageId)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
         let res = unsafe { crate::ffi::ExportImage(image.inner, path_c.as_ptr()) };
         Ok(res)
     }
 
-    pub fn export_image_to_memory(&self, id: ImageId, file_type: &str) -> Result<Vec<u8>, crate::RaylibError> {
-        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
+    pub fn export_image_to_memory(
+        &self,
+        id: ImageId,
+        file_type: &str,
+    ) -> Result<Vec<u8>, crate::RaylibError> {
+        let image = self
+            .images
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidImageId)?;
         let file_type_c =
             std::ffi::CString::new(file_type).map_err(|_| crate::RaylibError::PathNulError)?;
         let mut file_size: i32 = 0;
@@ -135,8 +150,15 @@ impl crate::RaylibHandle {
         Ok(vec)
     }
 
-    pub fn export_image_as_code<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, crate::RaylibError> {
-        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
+    pub fn export_image_as_code<P: AsRef<Path>>(
+        &self,
+        id: ImageId,
+        path: P,
+    ) -> Result<bool, crate::RaylibError> {
+        let image = self
+            .images
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidImageId)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
         let res = unsafe { crate::ffi::ExportImageAsCode(image.inner, path_c.as_ptr()) };
@@ -241,12 +263,7 @@ impl crate::RaylibHandle {
         self.images.add(Image { inner })
     }
 
-    pub fn gen_image_white_noise(
-        &mut self,
-        width: u32,
-        height: u32,
-        factor: f32,
-    ) -> ImageId {
+    pub fn gen_image_white_noise(&mut self, width: u32, height: u32, factor: f32) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageWhiteNoise(
                 width.try_into().unwrap(),
@@ -277,12 +294,7 @@ impl crate::RaylibHandle {
         self.images.add(Image { inner })
     }
 
-    pub fn gen_image_cellular(
-        &mut self,
-        width: u32,
-        height: u32,
-        tile_size: u32,
-    ) -> ImageId {
+    pub fn gen_image_cellular(&mut self, width: u32, height: u32, tile_size: u32) -> ImageId {
         let inner = unsafe {
             crate::ffi::GenImageCellular(
                 width.try_into().unwrap(),
@@ -340,7 +352,7 @@ impl Container<Image, ImageId> for crate::RaylibHandle {
     }
 
     fn take(&mut self, id: ImageId) -> Option<Image> {
-        unsafe { self.images.take(id) }
+        self.images.take(id)
     }
 
     fn get(&self, id: ImageId) -> Option<&Image> {

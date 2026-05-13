@@ -5,6 +5,7 @@ mod container;
 
 pub mod color;
 pub mod core;
+pub mod draw;
 pub mod image;
 pub mod material;
 pub mod math;
@@ -12,7 +13,7 @@ pub mod mesh;
 pub mod model;
 pub mod texture;
 
-use container::{Container, VecConainer};
+use container::VecConainer;
 
 pub trait Unloadable {
     fn unload(item: Self);
@@ -33,109 +34,6 @@ pub enum RaylibError {
     AllocatorOOM,
     AllocatorSizeTooBig,
     AllocatorZeroSize,
-}
-
-pub struct Draw3DHandle<'l, 'h> {
-    handle: &'l mut DrawHandle<'h>,
-}
-
-impl<'l, 'h> Draw3DHandle<'l, 'h> {
-    pub fn get_handle(&self) -> &RaylibHandle {
-        self.handle.get_handle()
-    }
-
-    pub fn get_handle_mut(&mut self) -> &mut RaylibHandle {
-        self.handle.get_handle_mut()
-    }
-
-    pub fn draw_grid(&self, slices: i32, spacing: f32) {
-        unsafe { crate::ffi::DrawGrid(slices, spacing) }
-    }
-}
-
-impl<'l, 'h> Drop for Draw3DHandle<'l, 'h> {
-    fn drop(&mut self) {
-        unsafe { crate::ffi::EndMode3D() }
-    }
-}
-
-pub struct DrawHandle<'h> {
-    handle: &'h mut RaylibHandle,
-}
-
-impl<'h> DrawHandle<'h> {
-    pub fn get_handle(&self) -> &RaylibHandle {
-        self.handle
-    }
-
-    pub fn get_handle_mut(&mut self) -> &mut RaylibHandle {
-        self.handle
-    }
-
-    pub fn clear_background(&mut self, color: impl color::ToRlColor) {
-        unsafe { crate::ffi::ClearBackground(color.to_rl_color()) }
-    }
-
-    pub fn begin_mode_3d<'l>(&'l mut self, camera: crate::core::Camera) -> Draw3DHandle<'l, 'h> {
-        unsafe { crate::ffi::BeginMode3D(camera.inner) }
-        Draw3DHandle { handle: self }
-    }
-
-    pub fn begin_mode_3d_with<F, R>(&mut self, camera: crate::core::Camera, f: F) -> R
-    where
-        F: FnOnce(Draw3DHandle) -> R,
-    {
-        let handle = self.begin_mode_3d(camera);
-        f(handle)
-    }
-
-    pub fn draw_rectangle(
-        &mut self,
-        pos_x: i32,
-        pos_y: i32,
-        width: i32,
-        height: i32,
-        color: impl color::ToRlColor,
-    ) {
-        unsafe { crate::ffi::DrawRectangle(pos_x, pos_y, width, height, color.to_rl_color()) }
-    }
-
-    pub fn draw_rectangle_lines(
-        &mut self,
-        pos_x: i32,
-        pos_y: i32,
-        width: i32,
-        height: i32,
-        color: impl color::ToRlColor,
-    ) {
-        unsafe { crate::ffi::DrawRectangleLines(pos_x, pos_y, width, height, color.to_rl_color()) }
-    }
-
-    pub fn draw_text(
-        &mut self,
-        text: &str,
-        pos_x: i32,
-        pos_y: i32,
-        font_size: i32,
-        color: impl color::ToRlColor,
-    ) {
-        let text_c = std::ffi::CString::new(text).unwrap();
-        unsafe {
-            crate::ffi::DrawText(
-                text_c.as_ptr(),
-                pos_x,
-                pos_y,
-                font_size,
-                color.to_rl_color(),
-            )
-        }
-    }
-}
-
-impl<'h> Drop for DrawHandle<'h> {
-    fn drop(&mut self) {
-        unsafe { crate::ffi::EndDrawing() };
-    }
 }
 
 pub struct RaylibHandle {
@@ -169,33 +67,6 @@ impl RaylibHandle {
 
     pub fn set_target_fps(&mut self, fps: i32) {
         unsafe { crate::ffi::SetTargetFPS(fps) }
-    }
-
-    pub fn begin_drawing(&mut self) -> DrawHandle<'_> {
-        unsafe { crate::ffi::BeginDrawing() }
-        DrawHandle { handle: self }
-    }
-
-    pub fn begin_drawing_with<F>(&mut self, f: F)
-    where
-        F: FnOnce(DrawHandle),
-    {
-        let handle = self.begin_drawing();
-        f(handle);
-    }
-
-    /// Set a texture on a model material. Handles both borrows internally.
-    pub fn set_model_material_texture(
-        &mut self,
-        model_id: model::ModelId,
-        material_idx: usize,
-        map_type: i32,
-        texture_id: texture::Texture2DId,
-    ) -> Result<(), RaylibError> {
-        let tex_inner = self.textures.get(texture_id).ok_or(RaylibError::InvalidTexture2DId)?.inner;
-        let mat = self.get_model_materials_mut(model_id)?.get_mut(material_idx).ok_or(RaylibError::InvalidMaterialId)?;
-        unsafe { crate::ffi::SetMaterialTexture(&mut mat.inner, map_type, tex_inner) }
-        Ok(())
     }
 
     // Input & Camera - Enforcing Thread Safety

@@ -1,7 +1,7 @@
 use std::{path::Path, slice};
 
 use crate::{
-    RaylibHandle, RaylibError,
+    RaylibError, RaylibHandle,
     container::{Container, ContainerId},
     texture::Texture2DId,
 };
@@ -51,7 +51,10 @@ impl RaylibHandle {
         self.materials.add(Material { inner })
     }
 
-    pub fn load_materials<P: AsRef<Path>>(&mut self, path: P) -> Result<Vec<MaterialId>, RaylibError> {
+    pub fn load_materials<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+    ) -> Result<Vec<MaterialId>, RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| RaylibError::PathNulError)?;
         let mut count: i32 = 0;
@@ -82,7 +85,8 @@ impl RaylibHandle {
         let texture_inner = self
             .textures
             .get(texture_id)
-            .ok_or_else(|| RaylibError::InvalidTexture2DId)?.inner;
+            .ok_or_else(|| RaylibError::InvalidTexture2DId)?
+            .inner;
         let material = self
             .materials
             .get_mut(id)
@@ -102,7 +106,9 @@ impl RaylibHandle {
             MaterialMap::PREFILTER => crate::ffi::MaterialMapIndex_MATERIAL_MAP_PREFILTER,
             MaterialMap::ROUGHNESS => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ROUGHNESS,
         };
-        unsafe { crate::ffi::SetMaterialTexture(&mut material.inner, map_type as i32, texture_inner) }
+        unsafe {
+            crate::ffi::SetMaterialTexture(&mut material.inner, map_type as i32, texture_inner)
+        }
         Ok(())
     }
 }

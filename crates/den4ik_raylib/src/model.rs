@@ -2,17 +2,12 @@ use std::{num::NonZeroUsize, path::Path};
 
 use crate::container::{Container, ContainerId};
 
-
-
 pub struct Model {
-    inner: crate::ffi::Model,
+    pub(crate) inner: crate::ffi::Model,
 }
 
 impl crate::RaylibHandle {
-    pub fn load_model<P: AsRef<Path>>(
-        &mut self,
-        path: P,
-    ) -> Result<ModelId, crate::RaylibError> {
+    pub fn load_model<P: AsRef<Path>>(&mut self, path: P) -> Result<ModelId, crate::RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
         let inner = unsafe { crate::ffi::LoadModel(path_c.as_ptr()) };
@@ -27,8 +22,10 @@ impl crate::RaylibHandle {
         &mut self,
         mesh_id: crate::mesh::MeshId,
     ) -> Result<ModelId, crate::RaylibError> {
-        let mesh: crate::mesh::Mesh =
-            unsafe { self.meshes.take(mesh_id).ok_or(crate::RaylibError::EmptyModel)? };
+        let mesh: crate::mesh::Mesh = self
+            .meshes
+            .take(mesh_id)
+            .ok_or(crate::RaylibError::EmptyModel)?;
         let inner = unsafe { crate::ffi::LoadModelFromMesh(mesh.into_inner()) };
         if inner.meshCount > 0 {
             Ok(self.models.add(Model { inner }))
@@ -37,80 +34,127 @@ impl crate::RaylibHandle {
         }
     }
 
-    pub fn draw_model(
-        &self,
-        id: ModelId,
-        _draw_3d_handle: &crate::Draw3DHandle,
-        position: crate::math::Vector3,
-        scale: f32,
-        tint: impl crate::color::ToRlColor,
-    ) -> Result<(), crate::RaylibError> {
-        let model = self.models.get(id).ok_or(crate::RaylibError::InvalidModelId)?;
-        unsafe { crate::ffi::DrawModel(model.inner, position.into(), scale, tint.to_rl_color()) }
-        Ok(())
-    }
-
     pub fn get_model_mesh_count(&self, id: ModelId) -> Result<NonZeroUsize, crate::RaylibError> {
-        let model = self.models.get(id).ok_or(crate::RaylibError::InvalidModelId)?;
+        let model = self
+            .models
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
         let count = usize::try_from(model.inner.meshCount).unwrap();
         Ok(NonZeroUsize::new(count).unwrap())
     }
 
-    pub fn get_model_material_count(&self, id: ModelId) -> Result<NonZeroUsize, crate::RaylibError> {
-        let model = self.models.get(id).ok_or(crate::RaylibError::InvalidModelId)?;
+    pub fn get_model_material_count(
+        &self,
+        id: ModelId,
+    ) -> Result<NonZeroUsize, crate::RaylibError> {
+        let model = self
+            .models
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
         let count = usize::try_from(model.inner.materialCount).unwrap();
         Ok(NonZeroUsize::new(count).unwrap())
     }
 
-    pub fn get_model_meshes(&self, id: ModelId) -> Result<&[crate::mesh::Mesh], crate::RaylibError> {
+    pub fn get_model_meshes(
+        &self,
+        id: ModelId,
+    ) -> Result<&[crate::mesh::Mesh], crate::RaylibError> {
         let count = self.get_model_mesh_count(id)?.get();
-        let model = self.models.get(id).ok_or(crate::RaylibError::InvalidModelId)?;
+        let model = self
+            .models
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
         Ok(unsafe { std::slice::from_raw_parts(model.inner.meshes.cast(), count) })
     }
 
-    pub fn get_model_meshes_mut(&mut self, id: ModelId) -> Result<&mut [crate::mesh::Mesh], crate::RaylibError> {
+    pub fn get_model_meshes_mut(
+        &mut self,
+        id: ModelId,
+    ) -> Result<&mut [crate::mesh::Mesh], crate::RaylibError> {
         let count = self.get_model_mesh_count(id)?.get();
-        let model = self.models.get_mut(id).ok_or(crate::RaylibError::InvalidModelId)?;
-        Ok(unsafe {
-            std::slice::from_raw_parts_mut(model.inner.meshes.cast(), count)
-        })
+        let model = self
+            .models
+            .get_mut(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
+        Ok(unsafe { std::slice::from_raw_parts_mut(model.inner.meshes.cast(), count) })
     }
 
-    pub fn get_model_materials(&self, id: ModelId) -> Result<&[crate::material::Material], crate::RaylibError> {
+    pub fn get_model_materials(
+        &self,
+        id: ModelId,
+    ) -> Result<&[crate::material::Material], crate::RaylibError> {
         let count = self.get_model_material_count(id)?.get();
-        let model = self.models.get(id).ok_or(crate::RaylibError::InvalidModelId)?;
-        Ok(unsafe {
-            std::slice::from_raw_parts(model.inner.materials.cast(), count)
-        })
+        let model = self
+            .models
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
+        Ok(unsafe { std::slice::from_raw_parts(model.inner.materials.cast(), count) })
     }
 
-    pub fn get_model_materials_mut(&mut self, id: ModelId) -> Result<&mut [crate::material::Material], crate::RaylibError> {
+    pub fn get_model_materials_mut(
+        &mut self,
+        id: ModelId,
+    ) -> Result<&mut [crate::material::Material], crate::RaylibError> {
         let count = self.get_model_material_count(id)?.get();
-        let model = self.models.get_mut(id).ok_or(crate::RaylibError::InvalidModelId)?;
-        Ok(unsafe {
-            std::slice::from_raw_parts_mut(
-                model.inner.materials.cast(),
-                count,
-            )
-        })
+        let model = self
+            .models
+            .get_mut(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
+        Ok(unsafe { std::slice::from_raw_parts_mut(model.inner.materials.cast(), count) })
     }
 
-    pub fn get_model_mesh_material(&self, id: ModelId, mesh_idx: usize) -> Result<usize, crate::RaylibError> {
+    pub fn get_model_mesh_material(
+        &self,
+        id: ModelId,
+        mesh_idx: usize,
+    ) -> Result<usize, crate::RaylibError> {
         let count = self.get_model_mesh_count(id)?.get();
         assert!(mesh_idx < count);
-        let model = self.models.get(id).ok_or(crate::RaylibError::InvalidModelId)?;
+        let model = self
+            .models
+            .get(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
         let idx = unsafe { model.inner.meshMaterial.add(mesh_idx).read() };
         Ok(idx.try_into().unwrap())
     }
 
-    pub fn set_model_mesh_material(&mut self, id: ModelId, mesh_idx: usize, material_idx: usize) -> Result<(), crate::RaylibError> {
+    pub fn set_model_mesh_material(
+        &mut self,
+        id: ModelId,
+        mesh_idx: usize,
+        material_idx: usize,
+    ) -> Result<(), crate::RaylibError> {
         let mesh_count = self.get_model_mesh_count(id)?.get();
         let material_count = self.get_model_material_count(id)?.get();
         assert!(mesh_idx < mesh_count);
         assert!(material_idx < material_count);
         let material_idx = material_idx.try_into().unwrap();
-        let model = self.models.get_mut(id).ok_or(crate::RaylibError::InvalidModelId)?;
+        let model = self
+            .models
+            .get_mut(id)
+            .ok_or(crate::RaylibError::InvalidModelId)?;
         unsafe { model.inner.meshMaterial.add(mesh_idx).write(material_idx) };
+        Ok(())
+    }
+
+    /// Set a texture on a model material. Handles both borrows internally.
+    pub fn set_model_material_texture(
+        &mut self,
+        model_id: ModelId,
+        material_idx: usize,
+        map_type: i32,
+        texture_id: crate::texture::Texture2DId,
+    ) -> Result<(), crate::RaylibError> {
+        let tex_inner = self
+            .textures
+            .get(texture_id)
+            .ok_or(crate::RaylibError::InvalidTexture2DId)?
+            .inner;
+        let mat = self
+            .get_model_materials_mut(model_id)?
+            .get_mut(material_idx)
+            .ok_or(crate::RaylibError::InvalidMaterialId)?;
+        unsafe { crate::ffi::SetMaterialTexture(&mut mat.inner, map_type, tex_inner) }
         Ok(())
     }
 }
@@ -144,7 +188,7 @@ impl Container<Model, ModelId> for crate::RaylibHandle {
     }
 
     fn take(&mut self, id: ModelId) -> Option<Model> {
-        unsafe { self.models.take(id) }
+        self.models.take(id)
     }
 
     fn get(&self, id: ModelId) -> Option<&Model> {

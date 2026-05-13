@@ -49,7 +49,7 @@ impl<T: Unloadable, Id: ContainerId> Container<T, Id> for VecConainer<T, Id> {
     }
 
     fn remove(&mut self, id: Id) -> bool {
-        match unsafe { self.take(id) } {
+        match self.take(id) {
             Some(item) => {
                 T::unload(item);
                 true
