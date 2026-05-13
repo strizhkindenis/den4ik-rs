@@ -1,21 +1,29 @@
 mod ffi;
 
-pub mod allocator;
+mod allocator;
+mod container;
+
 pub mod color;
-pub mod container;
 pub mod core;
 pub mod image;
 pub mod material;
+pub mod math;
 pub mod mesh;
 pub mod model;
-pub mod math;
 pub mod texture;
+
+use container::{Container, VecConainer};
 
 pub trait Unloadable {
     fn unload(item: Self);
 }
 
-use container::{Container, VecConainer};
+pub enum RaylibError {
+    PathNulError,
+    InvalidMeshId,
+    InvalidMaterialId,
+    InvalidTexture2DId,
+}
 
 pub struct Draw3DHandle<'l, 'h> {
     handle: &'l mut DrawHandle<'h>,

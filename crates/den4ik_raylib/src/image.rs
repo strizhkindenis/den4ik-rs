@@ -94,7 +94,10 @@ impl Image {
         Ok(handle.add(Self { inner }))
     }
 
-    pub fn load_from_texture(handle: &mut crate::RaylibHandle, texture_id: crate::texture::Texture2DId) -> Option<ImageId> {
+    pub fn load_from_texture(
+        handle: &mut crate::RaylibHandle,
+        texture_id: crate::texture::Texture2DId,
+    ) -> Option<ImageId> {
         let texture = handle.textures.get(texture_id)?;
         let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
         Some(handle.add(Self { inner }))

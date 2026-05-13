@@ -128,7 +128,7 @@ impl Container<Model, ModelId> for crate::RaylibHandle {
         self.models.remove(id)
     }
 
-    unsafe fn take(&mut self, id: ModelId) -> Option<Model> {
+    fn take(&mut self, id: ModelId) -> Option<Model> {
         unsafe { self.models.take(id) }
     }
 

@@ -1,4 +1,5 @@
 use crate::{
+	Handle,
     allocator::{Allocator, AllocatorError},
     container::{Container, ContainerId},
 };
@@ -382,7 +383,7 @@ impl ContainerId for MeshId {
     }
 }
 
-impl Container<Mesh, MeshId> for crate::RaylibHandle {
+impl Container<Mesh, MeshId> for Handle {
     fn add(&mut self, item: Mesh) -> MeshId {
         self.meshes.add(item)
     }
@@ -391,7 +392,7 @@ impl Container<Mesh, MeshId> for crate::RaylibHandle {
         self.meshes.remove(id)
     }
 
-    unsafe fn take(&mut self, id: MeshId) -> Option<Mesh> {
+    fn take(&mut self, id: MeshId) -> Option<Mesh> {
         unsafe { self.meshes.take(id) }
     }
 

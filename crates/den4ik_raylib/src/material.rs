@@ -1,70 +1,25 @@
-use crate::container::{Container, ContainerId};
-use std::path::Path;
+use std::{path::Path, slice};
 
-pub enum MaterialError {
-    PathContainsNullByte,
-}
+use crate::{
+    RaylibHandle, RaylibError,
+    container::{Container, ContainerId},
+    texture::Texture2DId,
+};
 
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO as MATERIAL_MAP_DIFFUSE;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO as MATERIAL_MAP_ALBEDO;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_BRDF as MATERIAL_MAP_BRDF;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_CUBEMAP as MATERIAL_MAP_CUBEMAP;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_EMISSION as MATERIAL_MAP_EMISSION;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_HEIGHT as MATERIAL_MAP_HEIGHT;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_IRRADIANCE as MATERIAL_MAP_IRRADIANCE;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_METALNESS as MATERIAL_MAP_METALNESS;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_NORMAL as MATERIAL_MAP_NORMAL;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_OCCLUSION as MATERIAL_MAP_OCCLUSION;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_PREFILTER as MATERIAL_MAP_PREFILTER;
-pub use crate::ffi::MaterialMapIndex_MATERIAL_MAP_ROUGHNESS as MATERIAL_MAP_ROUGHNESS;
-
-pub struct Material {
-    pub(crate) inner: crate::ffi::Material,
-}
-
-impl Material {
-    pub fn load_default(handle: &mut crate::RaylibHandle) -> MaterialId {
-        let inner = unsafe { crate::ffi::LoadMaterialDefault() };
-        handle.add(Self { inner })
-    }
-
-    pub fn load_materials<P: AsRef<Path>>(
-        handle: &mut crate::RaylibHandle,
-        path: P,
-    ) -> Result<Vec<MaterialId>, MaterialError> {
-        let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
-            .map_err(|_| MaterialError::PathContainsNullByte)?;
-        let mut count: i32 = 0;
-        let materials_ptr = unsafe { crate::ffi::LoadMaterials(path_c.as_ptr(), &mut count) };
-        let mut ids: Vec<MaterialId> = Vec::with_capacity(count as usize);
-        for i in 0..count {
-            let inner = unsafe { *materials_ptr.add(i as usize) };
-            ids.push(handle.add(Self { inner }));
-        }
-        unsafe { crate::ffi::MemFree(materials_ptr as *mut std::ffi::c_void) };
-        Ok(ids)
-    }
-
-    pub fn is_valid(&self) -> bool {
-        unsafe { crate::ffi::IsMaterialValid(self.inner) }
-    }
-
-    pub fn set_texture(
-        &mut self,
-        handle: &crate::RaylibHandle,
-        map_type: i32,
-        texture_id: crate::texture::Texture2DId,
-    ) -> Option<()> {
-        let texture = handle.textures.get(texture_id)?;
-        unsafe { crate::ffi::SetMaterialTexture(&mut self.inner, map_type, texture.inner) }
-        Some(())
-    }
-}
-
-impl crate::Unloadable for Material {
-    fn unload(item: Self) {
-        unsafe { crate::ffi::UnloadMaterial(item.inner) }
-    }
+pub enum MaterialMap {
+    DIFFUSE,
+    ALBEDO,
+    BRDF,
+    CUBEMAP,
+    EMISSION,
+    HEIGHT,
+    IRRADIANCE,
+    METALNESS,
+    SPECULAR,
+    NORMAL,
+    OCCLUSION,
+    PREFILTER,
+    ROUGHNESS,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -80,24 +35,73 @@ impl ContainerId for MaterialId {
     }
 }
 
-impl Container<Material, MaterialId> for crate::RaylibHandle {
-    fn add(&mut self, item: Material) -> MaterialId {
-        self.materials.add(item)
+pub struct Material {
+    pub(crate) inner: crate::ffi::Material,
+}
+
+impl crate::Unloadable for Material {
+    fn unload(item: Self) {
+        unsafe { crate::ffi::UnloadMaterial(item.inner) }
+    }
+}
+
+impl RaylibHandle {
+    pub fn load_material_default(&mut self) -> MaterialId {
+        let inner = unsafe { crate::ffi::LoadMaterialDefault() };
+        handle.add(Self { inner })
     }
 
-    fn remove(&mut self, id: MaterialId) -> bool {
-        self.materials.remove(id)
+    pub fn load_materials<P: AsRef<Path>>(&mut self, path: P) -> Result<Vec<MaterialId>, RaylibError> {
+        let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
+            .map_err(|_| RaylibError::PathNulError)?;
+        let mut count: i32 = 0;
+        let materials_ptr = unsafe { crate::ffi::LoadMaterials(path_c.as_ptr(), &mut count) };
+        let ids = slice::from_raw_parts(materials_ptr, count as usize)
+            .map(|inner| self.materials.add(Self { inner }))
+            .collect::<Vec<_>>();
+        unsafe { crate::ffi::MemFree(materials_ptr.cast()) };
+        Ok(ids)
     }
 
-    unsafe fn take(&mut self, id: MaterialId) -> Option<Material> {
-        unsafe { self.materials.take(id) }
+    pub fn is_material_valid(&self, id: MaterialId) -> Resut<bool, RaylibError> {
+        let material = self
+            .material
+            .get(id)
+            .ok_or_else(|| RaylibError::InvalidMaterialId);
+        let is_valid = unsafe { crate::ffi::IsMaterialValid(material.inner) };
+        Ok(is_valid)
     }
 
-    fn get(&self, id: MaterialId) -> Option<&Material> {
-        self.materials.get(id)
-    }
-
-    fn get_mut(&mut self, id: MaterialId) -> Option<&mut Material> {
-        self.materials.get_mut(id)
+    pub fn set_material_texture(
+        &mut self,
+        id: MaterialId,
+        map: MaterialMap,
+        texture_id: Texture2DId,
+    ) -> Result<(), RaylibError> {
+        let texture = self
+            .textures
+            .take(texture_id)
+            .ok_or_else(|| RaylibError::InvalidTexture2DId);
+        let material = self
+            .materials
+            .get_mut(id)
+            .ok_or_else(|| RaylibError::InvalidMaterialId);
+        let map_type = match map {
+            DIFFUSE => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO,
+            ALBEDO => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO,
+            BRDF => crate::ffi::MaterialMapIndex_MATERIAL_MAP_BRDF,
+            CUBEMAP => crate::ffi::MaterialMapIndex_MATERIAL_MAP_CUBEMAP,
+            EMISSION => crate::ffi::MaterialMapIndex_MATERIAL_MAP_EMISSION,
+            HEIGHT => crate::ffi::MaterialMapIndex_MATERIAL_MAP_HEIGHT,
+            IRRADIANCE => crate::ffi::MaterialMapIndex_MATERIAL_MAP_IRRADIANCE,
+            METALNESS => crate::ffi::MaterialMapIndex_MATERIAL_MAP_METALNESS,
+            SPECULAR => crate::ffi::MaterialMapIndex_MATERIAL_MAP_METALNESS,
+            NORMAL => crate::ffi::MaterialMapIndex_MATERIAL_MAP_NORMAL,
+            OCCLUSION => crate::ffi::MaterialMapIndex_MATERIAL_MAP_OCCLUSION,
+            PREFILTER => crate::ffi::MaterialMapIndex_MATERIAL_MAP_PREFILTER,
+            ROUGNESS => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ROUGHNESS,
+        };
+        unsafe { crate::ffi::SetMaterialTexture(&mut self.inner, map_type, texture.inner) }
+        Ok(())
     }
 }

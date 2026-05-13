@@ -1,6 +1,8 @@
+use std::{fmt::Debug, hash::Hash};
+
 use crate::Unloadable;
 
-pub trait ContainerId: Sized + std::fmt::Debug + Copy + Clone + Eq + std::hash::Hash {
+pub trait ContainerId: Sized + Debug + Copy + Clone + Eq + Hash {
     fn to_usize(self) -> usize;
     fn from_usize(value: usize) -> Self;
 }
@@ -12,12 +14,12 @@ where
 {
     fn add(&mut self, item: T) -> Id;
     fn remove(&mut self, id: Id) -> bool;
-    unsafe fn take(&mut self, id: Id) -> Option<T>;
+    fn take(&mut self, id: Id) -> Option<T>;
     fn get(&self, id: Id) -> Option<&T>;
     fn get_mut(&mut self, id: Id) -> Option<&mut T>;
 }
 
-pub(crate) struct VecConainer<T: Unloadable, Id: ContainerId> {
+pub struct VecConainer<T: Unloadable, Id: ContainerId> {
     items: Vec<T>,
     available: Vec<Id>,
 }
@@ -56,7 +58,7 @@ impl<T: Unloadable, Id: ContainerId> Container<T, Id> for VecConainer<T, Id> {
         }
     }
 
-    unsafe fn take(&mut self, id: Id) -> Option<T> {
+    fn take(&mut self, id: Id) -> Option<T> {
         match self.get_mut(id) {
             Some(item) => {
                 let item = unsafe { std::mem::transmute_copy(item) };

@@ -16,7 +16,10 @@ fn main() {
     }
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    println!("cargo:rustc-link-search=native={}/raylib-6.0/src", manifest_dir);
+    println!(
+        "cargo:rustc-link-search=native={}/raylib-6.0/src",
+        manifest_dir
+    );
     println!("cargo:rustc-link-lib=static=raylib");
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Target OS not found.");

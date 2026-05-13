@@ -7,7 +7,13 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub const fn new(position: Vector3, target: Vector3, up: Vector3, fovy: f32, projection: i32) -> Self {
+    pub const fn new(
+        position: Vector3,
+        target: Vector3,
+        up: Vector3,
+        fovy: f32,
+        projection: i32,
+    ) -> Self {
         Self {
             inner: ffi::Camera3D {
                 position: position.inner,
@@ -15,7 +21,7 @@ impl Camera {
                 up: up.inner,
                 fovy,
                 projection,
-            }
+            },
         }
     }
 }

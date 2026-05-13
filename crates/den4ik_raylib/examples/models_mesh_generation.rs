@@ -2,12 +2,10 @@ use den4ik_raylib::{
     RaylibHandle,
     color::{Color, fade},
     container::Container,
-    core::{
-        CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT,
-    },
-    math::Vector3,
+    core::{CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT},
     image::{Image, ImageId},
     material::MATERIAL_MAP_DIFFUSE,
+    math::Vector3,
     mesh::{Mesh, MeshConfigBuilder, MeshId},
     model::{Model, ModelId},
     texture::{Texture2D, Texture2DId},
@@ -101,7 +99,10 @@ fn main() {
         handle.begin_drawing_with(|mut draw_handle| {
             draw_handle.clear_background(Color::RAYWHITE);
             draw_handle.begin_mode_3d_with(camera, |draw_3d_handle| {
-                let model = draw_3d_handle.get_handle().get(models[current_model]).unwrap();
+                let model = draw_3d_handle
+                    .get_handle()
+                    .get(models[current_model])
+                    .unwrap();
                 model.draw(&draw_3d_handle, position, 1.0, Color::WHITE);
                 draw_3d_handle.draw_grid(10, 1.0);
             });
