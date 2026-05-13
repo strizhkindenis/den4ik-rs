@@ -13,6 +13,19 @@ pub mod mesh;
 pub mod model;
 pub mod texture;
 
+pub mod prelude {
+    pub use crate::color::*;
+    pub use crate::core::*;
+    pub use crate::draw::*;
+    pub use crate::image::ImageId;
+    pub use crate::material::{MaterialId, MaterialMap};
+    pub use crate::math::*;
+    pub use crate::mesh::MeshId;
+    pub use crate::model::ModelId;
+    pub use crate::texture::{RenderTextureId, Texture2DId};
+    pub use crate::{RaylibError, RaylibHandle};
+}
+
 use container::VecConainer;
 
 pub trait Unloadable {
@@ -22,12 +35,8 @@ pub trait Unloadable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RaylibError {
     PathNulError,
-    InvalidMeshId,
-    InvalidMaterialId,
-    InvalidTexture2DId,
-    InvalidImageId,
-    InvalidModelId,
-    InvalidRenderTextureId,
+    InvalidId(&'static str),
+    InvalidIndex,
     ExportToMemoryFailed,
     EmptyModel,
     TrianglePointMiscount,
@@ -70,16 +79,16 @@ impl RaylibHandle {
     }
 
     // Input & Camera - Enforcing Thread Safety
-    pub fn is_mouse_button_pressed(&self, button: i32) -> bool {
-        unsafe { crate::ffi::IsMouseButtonPressed(button) }
+    pub fn is_mouse_button_pressed(&self, button: crate::core::MouseButton) -> bool {
+        unsafe { crate::ffi::IsMouseButtonPressed(button.into()) }
     }
 
-    pub fn is_key_pressed(&self, key: i32) -> bool {
-        unsafe { crate::ffi::IsKeyPressed(key) }
+    pub fn is_key_pressed(&self, key: crate::core::KeyboardKey) -> bool {
+        unsafe { crate::ffi::IsKeyPressed(key.into()) }
     }
 
-    pub fn update_camera(&self, camera: &mut crate::core::Camera, mode: i32) {
-        unsafe { crate::ffi::UpdateCamera(&mut camera.inner as *mut _, mode) }
+    pub fn update_camera(&self, camera: &mut crate::core::Camera, mode: crate::core::CameraMode) {
+        unsafe { crate::ffi::UpdateCamera(&mut camera.inner as *mut _, mode.into()) }
     }
 }
 

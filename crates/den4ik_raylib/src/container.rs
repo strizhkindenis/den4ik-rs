@@ -13,10 +13,10 @@ where
     Id: ContainerId,
 {
     fn add(&mut self, item: T) -> Id;
-    fn remove(&mut self, id: Id) -> bool;
-    fn take(&mut self, id: Id) -> Option<T>;
-    fn get(&self, id: Id) -> Option<&T>;
-    fn get_mut(&mut self, id: Id) -> Option<&mut T>;
+    fn remove(&mut self, id: Id) -> Result<(), crate::RaylibError>;
+    fn take(&mut self, id: Id) -> Result<T, crate::RaylibError>;
+    fn get(&self, id: Id) -> Result<&T, crate::RaylibError>;
+    fn get_mut(&mut self, id: Id) -> Result<&mut T, crate::RaylibError>;
 }
 
 pub struct VecConainer<T: Unloadable, Id: ContainerId> {
@@ -48,33 +48,47 @@ impl<T: Unloadable, Id: ContainerId> Container<T, Id> for VecConainer<T, Id> {
         }
     }
 
-    fn remove(&mut self, id: Id) -> bool {
-        match self.take(id) {
-            Some(item) => {
-                T::unload(item);
-                true
-            }
-            None => false,
+    fn remove(&mut self, id: Id) -> Result<(), crate::RaylibError> {
+        let index = id.to_usize();
+        if index < self.items.len() && !self.available.contains(&id) {
+            let mut empty = unsafe { std::mem::zeroed() };
+            std::mem::swap(&mut self.items[index], &mut empty);
+            T::unload(empty);
+            self.available.push(id);
+            Ok(())
+        } else {
+            Err(crate::RaylibError::InvalidId(std::any::type_name::<Id>()))
         }
     }
 
-    fn take(&mut self, id: Id) -> Option<T> {
-        match self.get_mut(id) {
-            Some(item) => {
-                let item = unsafe { std::mem::transmute_copy(item) };
-                self.available.push(id);
-                Some(item)
-            }
-            None => None,
+    fn take(&mut self, id: Id) -> Result<T, crate::RaylibError> {
+        let index = id.to_usize();
+        if index < self.items.len() && !self.available.contains(&id) {
+            let mut value = unsafe { std::mem::zeroed() };
+            std::mem::swap(&mut self.items[index], &mut value);
+            self.available.push(id);
+            Ok(value)
+        } else {
+            Err(crate::RaylibError::InvalidId(std::any::type_name::<Id>()))
         }
     }
 
-    fn get(&self, id: Id) -> Option<&T> {
-        self.items.get(id.to_usize())
+    fn get(&self, id: Id) -> Result<&T, crate::RaylibError> {
+        if self.available.contains(&id) {
+            return Err(crate::RaylibError::InvalidId(std::any::type_name::<Id>()));
+        }
+        self.items
+            .get(id.to_usize())
+            .ok_or(crate::RaylibError::InvalidId(std::any::type_name::<Id>()))
     }
 
-    fn get_mut(&mut self, id: Id) -> Option<&mut T> {
-        self.items.get_mut(id.to_usize())
+    fn get_mut(&mut self, id: Id) -> Result<&mut T, crate::RaylibError> {
+        if self.available.contains(&id) {
+            return Err(crate::RaylibError::InvalidId(std::any::type_name::<Id>()));
+        }
+        self.items
+            .get_mut(id.to_usize())
+            .ok_or(crate::RaylibError::InvalidId(std::any::type_name::<Id>()))
     }
 }
 

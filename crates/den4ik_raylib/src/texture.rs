@@ -53,6 +53,14 @@ impl ContainerId for RenderTextureId {
 }
 
 impl RaylibHandle {
+    pub fn remove_texture(&mut self, id: Texture2DId) -> Result<(), RaylibError> {
+        self.textures.remove(id)
+    }
+
+    pub fn remove_render_texture(&mut self, id: RenderTextureId) -> Result<(), RaylibError> {
+        self.render_textures.remove(id)
+    }
+
     pub fn load_render_texture(&mut self, width: u32, height: u32) -> RenderTextureId {
         let inner = unsafe {
             crate::ffi::LoadRenderTexture(width.try_into().unwrap(), height.try_into().unwrap())
@@ -61,10 +69,7 @@ impl RaylibHandle {
     }
 
     pub fn is_render_texture_valid(&self, id: RenderTextureId) -> Result<bool, RaylibError> {
-        let texture = self
-            .render_textures
-            .get(id)
-            .ok_or(RaylibError::InvalidRenderTextureId)?;
+        let texture = self.render_textures.get(id)?;
         Ok(unsafe { crate::ffi::IsRenderTextureValid(texture.inner) })
     }
 
@@ -79,10 +84,7 @@ impl RaylibHandle {
         &mut self,
         image_id: ImageId,
     ) -> Result<Texture2DId, RaylibError> {
-        let image = self
-            .images
-            .get(image_id)
-            .ok_or(RaylibError::InvalidImageId)?;
+        let image = self.images.get(image_id)?;
         let inner = unsafe { crate::ffi::LoadTextureFromImage(image.inner) };
         Ok(self.textures.add(Texture2D { inner }))
     }
@@ -92,27 +94,18 @@ impl RaylibHandle {
         image_id: ImageId,
         layout: i32,
     ) -> Result<Texture2DId, RaylibError> {
-        let image = self
-            .images
-            .get(image_id)
-            .ok_or(RaylibError::InvalidImageId)?;
+        let image = self.images.get(image_id)?;
         let inner = unsafe { crate::ffi::LoadTextureCubemap(image.inner, layout) };
         Ok(self.textures.add(Texture2D { inner }))
     }
 
     pub fn is_texture_valid(&self, id: Texture2DId) -> Result<bool, RaylibError> {
-        let texture = self
-            .textures
-            .get(id)
-            .ok_or_else(|| RaylibError::InvalidTexture2DId)?;
+        let texture = self.textures.get(id)?;
         Ok(unsafe { crate::ffi::IsTextureValid(texture.inner) })
     }
 
     pub fn update_texture(&mut self, id: Texture2DId, pixels: &[u8]) -> Result<(), RaylibError> {
-        let texture = self
-            .textures
-            .get_mut(id)
-            .ok_or_else(|| RaylibError::InvalidTexture2DId)?;
+        let texture = self.textures.get_mut(id)?;
         unsafe {
             crate::ffi::UpdateTexture(texture.inner, pixels.as_ptr() as *const std::ffi::c_void)
         }
@@ -125,10 +118,7 @@ impl RaylibHandle {
         rec: crate::ffi::Rectangle,
         pixels: &[u8],
     ) -> Result<(), RaylibError> {
-        let texture = self
-            .textures
-            .get_mut(id)
-            .ok_or_else(|| RaylibError::InvalidTexture2DId)?;
+        let texture = self.textures.get_mut(id)?;
         unsafe {
             crate::ffi::UpdateTextureRec(
                 texture.inner,

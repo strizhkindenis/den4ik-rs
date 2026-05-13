@@ -23,12 +23,7 @@ impl<'l, 'h> Draw3DHandle<'l, 'h> {
         scale: f32,
         tint: impl crate::color::ToRlColor,
     ) -> Result<(), crate::RaylibError> {
-        let model = self
-            .handle
-            .handle
-            .models
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidModelId)?;
+        let model = self.handle.handle.models.get(id)?;
         unsafe { crate::ffi::DrawModel(model.inner, position.into(), scale, tint.to_rl_color()) }
         Ok(())
     }

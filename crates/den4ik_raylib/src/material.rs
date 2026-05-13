@@ -6,20 +6,44 @@ use crate::{
     texture::Texture2DId,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MaterialMap {
-    DIFFUSE,
-    ALBEDO,
-    BRDF,
-    CUBEMAP,
-    EMISSION,
-    HEIGHT,
-    IRRADIANCE,
-    METALNESS,
-    SPECULAR,
-    NORMAL,
-    OCCLUSION,
-    PREFILTER,
-    ROUGHNESS,
+    Albedo,
+    Metalness,
+    Normal,
+    Roughness,
+    Occlusion,
+    Emission,
+    Height,
+    Cubemap,
+    Irradiance,
+    Prefilter,
+    Brdf,
+    // Aliases
+    Diffuse,
+    Specular,
+}
+
+impl From<MaterialMap> for i32 {
+    fn from(val: MaterialMap) -> Self {
+        match val {
+            MaterialMap::Albedo | MaterialMap::Diffuse => {
+                crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO as i32
+            }
+            MaterialMap::Metalness | MaterialMap::Specular => {
+                crate::ffi::MaterialMapIndex_MATERIAL_MAP_METALNESS as i32
+            }
+            MaterialMap::Normal => crate::ffi::MaterialMapIndex_MATERIAL_MAP_NORMAL as i32,
+            MaterialMap::Roughness => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ROUGHNESS as i32,
+            MaterialMap::Occlusion => crate::ffi::MaterialMapIndex_MATERIAL_MAP_OCCLUSION as i32,
+            MaterialMap::Emission => crate::ffi::MaterialMapIndex_MATERIAL_MAP_EMISSION as i32,
+            MaterialMap::Height => crate::ffi::MaterialMapIndex_MATERIAL_MAP_HEIGHT as i32,
+            MaterialMap::Cubemap => crate::ffi::MaterialMapIndex_MATERIAL_MAP_CUBEMAP as i32,
+            MaterialMap::Irradiance => crate::ffi::MaterialMapIndex_MATERIAL_MAP_IRRADIANCE as i32,
+            MaterialMap::Prefilter => crate::ffi::MaterialMapIndex_MATERIAL_MAP_PREFILTER as i32,
+            MaterialMap::Brdf => crate::ffi::MaterialMapIndex_MATERIAL_MAP_BRDF as i32,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -46,6 +70,10 @@ impl crate::Unloadable for Material {
 }
 
 impl RaylibHandle {
+    pub fn remove_material(&mut self, id: MaterialId) -> Result<(), crate::RaylibError> {
+        self.materials.remove(id)
+    }
+
     pub fn load_material_default(&mut self) -> MaterialId {
         let inner = unsafe { crate::ffi::LoadMaterialDefault() };
         self.materials.add(Material { inner })
@@ -68,10 +96,7 @@ impl RaylibHandle {
     }
 
     pub fn is_material_valid(&self, id: MaterialId) -> Result<bool, RaylibError> {
-        let material = self
-            .materials
-            .get(id)
-            .ok_or_else(|| RaylibError::InvalidMaterialId)?;
+        let material = self.materials.get(id)?;
         let is_valid = unsafe { crate::ffi::IsMaterialValid(material.inner) };
         Ok(is_valid)
     }
@@ -82,33 +107,9 @@ impl RaylibHandle {
         map: MaterialMap,
         texture_id: Texture2DId,
     ) -> Result<(), RaylibError> {
-        let texture_inner = self
-            .textures
-            .get(texture_id)
-            .ok_or_else(|| RaylibError::InvalidTexture2DId)?
-            .inner;
-        let material = self
-            .materials
-            .get_mut(id)
-            .ok_or_else(|| RaylibError::InvalidMaterialId)?;
-        let map_type = match map {
-            MaterialMap::DIFFUSE => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO,
-            MaterialMap::ALBEDO => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ALBEDO,
-            MaterialMap::BRDF => crate::ffi::MaterialMapIndex_MATERIAL_MAP_BRDF,
-            MaterialMap::CUBEMAP => crate::ffi::MaterialMapIndex_MATERIAL_MAP_CUBEMAP,
-            MaterialMap::EMISSION => crate::ffi::MaterialMapIndex_MATERIAL_MAP_EMISSION,
-            MaterialMap::HEIGHT => crate::ffi::MaterialMapIndex_MATERIAL_MAP_HEIGHT,
-            MaterialMap::IRRADIANCE => crate::ffi::MaterialMapIndex_MATERIAL_MAP_IRRADIANCE,
-            MaterialMap::METALNESS => crate::ffi::MaterialMapIndex_MATERIAL_MAP_METALNESS,
-            MaterialMap::SPECULAR => crate::ffi::MaterialMapIndex_MATERIAL_MAP_METALNESS,
-            MaterialMap::NORMAL => crate::ffi::MaterialMapIndex_MATERIAL_MAP_NORMAL,
-            MaterialMap::OCCLUSION => crate::ffi::MaterialMapIndex_MATERIAL_MAP_OCCLUSION,
-            MaterialMap::PREFILTER => crate::ffi::MaterialMapIndex_MATERIAL_MAP_PREFILTER,
-            MaterialMap::ROUGHNESS => crate::ffi::MaterialMapIndex_MATERIAL_MAP_ROUGHNESS,
-        };
-        unsafe {
-            crate::ffi::SetMaterialTexture(&mut material.inner, map_type as i32, texture_inner)
-        }
+        let texture_inner = self.textures.get(texture_id)?.inner;
+        let material = self.materials.get_mut(id)?;
+        unsafe { crate::ffi::SetMaterialTexture(&mut material.inner, map.into(), texture_inner) }
         Ok(())
     }
 }

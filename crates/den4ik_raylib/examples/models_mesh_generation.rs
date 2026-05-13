@@ -1,65 +1,58 @@
-use den4ik_raylib::{
-    RaylibHandle,
-    color::{Color, fade},
-    container::Container,
-    core::{CAMERA_ORBITAL, Camera, KEY_LEFT, KEY_RIGHT, MOUSE_BUTTON_LEFT},
-    image::{Image, ImageId},
-    material::MATERIAL_MAP_DIFFUSE,
-    math::Vector3,
-    mesh::{Mesh, MeshConfigBuilder, MeshId},
-    model::{Model, ModelId},
-    texture::{Texture2D, Texture2DId},
-};
+use den4ik_raylib::prelude::*;
 
 fn gen_mesh_custom(handle: &mut RaylibHandle) -> MeshId {
-    let config = MeshConfigBuilder::new(3, 1).with_normals().build().unwrap();
-    let mesh_id = Mesh::new(handle, config).unwrap();
-    {
-        let mesh = <RaylibHandle as Container<Mesh, MeshId>>::get_mut(handle, mesh_id).unwrap();
-        mesh.get_vertices_mut()[0] = [0.0, 0.0, 0.0];
-        mesh.get_normals_mut()[0] = [0.0, 1.0, 0.0];
-        mesh.get_texcoords_mut()[0] = [0.0, 0.0];
-        mesh.get_vertices_mut()[1] = [1.0, 0.0, 2.0];
-        mesh.get_normals_mut()[1] = [0.0, 1.0, 0.0];
-        mesh.get_texcoords_mut()[1] = [0.5, 1.0];
-        mesh.get_vertices_mut()[2] = [2.0, 0.0, 0.0];
-        mesh.get_normals_mut()[2] = [0.0, 1.0, 0.0];
-        mesh.get_texcoords_mut()[2] = [1.0, 0.0];
-        mesh.upload(false);
-    }
+    let config = den4ik_raylib::mesh::MeshConfigBuilder::new(3, 1)
+        .with_normals()
+        .build()
+        .unwrap();
+    let mesh_id = handle.load_mesh(config).unwrap();
+    handle.get_mesh_vertices_mut(mesh_id).unwrap()[0] = [0.0, 0.0, 0.0];
+    handle.get_mesh_normals_mut(mesh_id).unwrap()[0] = [0.0, 1.0, 0.0];
+    handle.get_mesh_texcoords_mut(mesh_id).unwrap()[0] = [0.0, 0.0];
+    handle.get_mesh_vertices_mut(mesh_id).unwrap()[1] = [1.0, 0.0, 2.0];
+    handle.get_mesh_normals_mut(mesh_id).unwrap()[1] = [0.0, 1.0, 0.0];
+    handle.get_mesh_texcoords_mut(mesh_id).unwrap()[1] = [0.5, 1.0];
+    handle.get_mesh_vertices_mut(mesh_id).unwrap()[2] = [2.0, 0.0, 0.0];
+    handle.get_mesh_normals_mut(mesh_id).unwrap()[2] = [0.0, 1.0, 0.0];
+    handle.get_mesh_texcoords_mut(mesh_id).unwrap()[2] = [1.0, 0.0];
+    handle.upload_mesh(mesh_id, false).unwrap();
     mesh_id
 }
 
 fn get_texture(handle: &mut RaylibHandle) -> Texture2DId {
-    let img_id: ImageId = Image::gen_checked(handle, 2, 2, 1, 1, Color::RED, Color::GREEN);
-    let texture_id: Texture2DId = Texture2D::load_from_image(handle, img_id).unwrap();
-    <RaylibHandle as Container<Image, ImageId>>::remove(handle, img_id);
+    let img_id = handle.gen_image_checked(2, 2, 1, 1, Color::RED, Color::GREEN);
+    let texture_id = handle.load_texture_from_image(img_id).unwrap();
+    handle.remove_image(img_id).unwrap();
     texture_id
 }
 
 fn get_models(handle: &mut RaylibHandle) -> Vec<ModelId> {
     let texture_id = get_texture(handle);
     let mut models = Vec::new();
-    let mesh_id = Mesh::gen_plane(handle, 2.0, 2.0, 4, 3);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_cube(handle, 2.0, 1.0, 2.0);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_sphere(handle, 2.0, 32, 32);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_hemisphere(handle, 2.0, 16, 16);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_cylinder(handle, 1.0, 2.0, 16);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_torus(handle, 0.25, 4.0, 16, 32);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_knot(handle, 1.0, 2.0, 16, 128);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    let mesh_id = Mesh::gen_poly(handle, 5, 2.0);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
+
+    let mesh_id = handle.gen_mesh_plane(2.0, 2.0, 4, 3);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_cube(2.0, 1.0, 2.0);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_sphere(2.0, 32, 32);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_hemisphere(2.0, 16, 16);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_cylinder(1.0, 2.0, 16);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_torus(0.25, 4.0, 16, 32);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_knot(1.0, 2.0, 16, 128);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+    let mesh_id = handle.gen_mesh_poly(5, 2.0);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
     let mesh_id = gen_mesh_custom(handle);
-    models.push(Model::load_from_mesh(handle, mesh_id).unwrap());
-    for model_id in &models {
-        handle.set_model_material_texture(*model_id, 0, MATERIAL_MAP_DIFFUSE as i32, texture_id);
+    models.push(handle.load_model_from_mesh(mesh_id).unwrap());
+
+    for &model_id in &models {
+        handle
+            .set_model_material_texture(model_id, 0, MaterialMap::Diffuse, texture_id)
+            .unwrap();
     }
     models
 }
@@ -77,56 +70,64 @@ fn main() {
     let position = Vector3::new(0.0, 0.0, 0.0);
     let mut current_model: usize = 0;
     handle.set_target_fps(60);
-    while !handle.window_should_close() {
-        handle.update_camera(&mut camera, CAMERA_ORBITAL as i32);
 
-        if handle.is_mouse_button_pressed(MOUSE_BUTTON_LEFT as i32) {
+    while !handle.window_should_close() {
+        handle.update_camera(&mut camera, CameraMode::Orbital);
+
+        if handle.is_mouse_button_pressed(MouseButton::Left) {
             current_model = (current_model + 1) % models.len();
         }
 
-        if handle.is_key_pressed(KEY_RIGHT as i32) {
-            current_model += 1;
-            if current_model >= models.len() {
-                current_model = 0;
-            }
-        } else if handle.is_key_pressed(KEY_LEFT as i32) {
-            if current_model == 0 {
-                current_model = models.len() - 1;
-            } else {
-                current_model -= 1;
-            }
+        if handle.is_key_pressed(KeyboardKey::Right) {
+            current_model = (current_model + 1) % models.len();
+        } else if handle.is_key_pressed(KeyboardKey::Left) {
+            current_model = current_model.checked_sub(1).unwrap_or(models.len() - 1);
         }
-        handle.begin_drawing_with(|mut draw_handle| {
-            draw_handle.clear_background(Color::RAYWHITE);
-            draw_handle.begin_mode_3d_with(camera, |draw_3d_handle| {
-                let model = draw_3d_handle
-                    .get_handle()
-                    .get(models[current_model])
-                    .unwrap();
-                model.draw(&draw_3d_handle, position, 1.0, Color::WHITE);
-                draw_3d_handle.draw_grid(10, 1.0);
-            });
-            draw_handle.draw_rectangle(30, 400, 310, 30, fade(Color::SKYBLUE, 0.5));
-            draw_handle.draw_rectangle_lines(30, 400, 310, 30, fade(Color::DARKBLUE, 0.5));
-            draw_handle.draw_text(
+
+        handle.begin_drawing(|mut d| {
+            d.clear_background(Color::RAYWHITE);
+            d.begin_mode_3d(
+                |mut d3| {
+                    d3.draw_model(models[current_model], position, 1.0, Color::WHITE)
+                        .unwrap();
+                    d3.draw_grid(10, 1.0);
+                },
+                camera,
+            );
+            d.draw_rectangle(
+                30,
+                400,
+                310,
+                30,
+                den4ik_raylib::color::fade(Color::SKYBLUE, 0.5),
+            );
+            d.draw_rectangle_lines(
+                30,
+                400,
+                310,
+                30,
+                den4ik_raylib::color::fade(Color::DARKBLUE, 0.5),
+            );
+            d.draw_text(
                 "MOUSE LEFT BUTTON to CYCLE PROCEDURAL MODELS",
                 40,
                 410,
                 10,
                 Color::BLUE,
             );
-            match current_model {
-                0 => draw_handle.draw_text("PLANE", 680, 10, 20, Color::DARKBLUE),
-                1 => draw_handle.draw_text("CUBE", 680, 10, 20, Color::DARKBLUE),
-                2 => draw_handle.draw_text("SPHERE", 680, 10, 20, Color::DARKBLUE),
-                3 => draw_handle.draw_text("HEMISPHERE", 640, 10, 20, Color::DARKBLUE),
-                4 => draw_handle.draw_text("CYLINDER", 680, 10, 20, Color::DARKBLUE),
-                5 => draw_handle.draw_text("TORUS", 680, 10, 20, Color::DARKBLUE),
-                6 => draw_handle.draw_text("KNOT", 680, 10, 20, Color::DARKBLUE),
-                7 => draw_handle.draw_text("POLY", 680, 10, 20, Color::DARKBLUE),
-                8 => draw_handle.draw_text("Custom (triangle)", 580, 10, 20, Color::DARKBLUE),
+            let label = match current_model {
+                0 => ("PLANE", 680),
+                1 => ("CUBE", 680),
+                2 => ("SPHERE", 680),
+                3 => ("HEMISPHERE", 640),
+                4 => ("CYLINDER", 680),
+                5 => ("TORUS", 680),
+                6 => ("KNOT", 680),
+                7 => ("POLY", 680),
+                8 => ("Custom (triangle)", 580),
                 _ => unreachable!(),
-            }
+            };
+            d.draw_text(label.0, label.1, 10, 20, Color::DARKBLUE);
         });
     }
 }

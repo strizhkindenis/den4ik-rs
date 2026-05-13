@@ -82,6 +82,10 @@ impl Mesh {
 }
 
 impl crate::RaylibHandle {
+    pub fn remove_mesh(&mut self, id: MeshId) -> Result<(), crate::RaylibError> {
+        self.meshes.remove(id)
+    }
+
     pub fn load_mesh(&mut self, config: MeshConfig) -> Result<MeshId, crate::RaylibError> {
         let mut inner = crate::ffi::Mesh {
             vertexCount: config.vertex_count.try_into().unwrap(),
@@ -131,19 +135,13 @@ impl crate::RaylibHandle {
     }
 
     pub fn upload_mesh(&mut self, id: MeshId, dynamic: bool) -> Result<(), crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         unsafe { crate::ffi::UploadMesh(&mut mesh.inner, dynamic) }
         Ok(())
     }
 
     pub fn get_mesh_vertices(&self, id: MeshId) -> Result<&[[f32; 3]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get(id)?;
         Ok(unsafe { std::slice::from_raw_parts(mesh.inner.vertices.cast(), mesh.vertex_count) })
     }
 
@@ -151,10 +149,7 @@ impl crate::RaylibHandle {
         &mut self,
         id: MeshId,
     ) -> Result<&mut [[f32; 3]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         Ok(
             unsafe {
                 std::slice::from_raw_parts_mut(mesh.inner.vertices.cast(), mesh.vertex_count)
@@ -163,10 +158,7 @@ impl crate::RaylibHandle {
     }
 
     pub fn get_mesh_texcoords(&self, id: MeshId) -> Result<&[[f32; 2]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get(id)?;
         Ok(unsafe { std::slice::from_raw_parts(mesh.inner.texcoords.cast(), mesh.vertex_count) })
     }
 
@@ -174,20 +166,14 @@ impl crate::RaylibHandle {
         &mut self,
         id: MeshId,
     ) -> Result<&mut [[f32; 2]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         Ok(unsafe {
             std::slice::from_raw_parts_mut(mesh.inner.texcoords.cast(), mesh.vertex_count)
         })
     }
 
     pub fn get_mesh_normals(&self, id: MeshId) -> Result<&[[f32; 3]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get(id)?;
         if mesh.inner.normals.is_null() {
             return Ok(&[]);
         }
@@ -198,10 +184,7 @@ impl crate::RaylibHandle {
         &mut self,
         id: MeshId,
     ) -> Result<&mut [[f32; 3]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         if mesh.inner.normals.is_null() {
             return Ok(&mut []);
         }
@@ -209,10 +192,7 @@ impl crate::RaylibHandle {
     }
 
     pub fn get_mesh_tangents(&self, id: MeshId) -> Result<&[[f32; 4]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get(id)?;
         if mesh.inner.tangents.is_null() {
             return Ok(&[]);
         }
@@ -223,10 +203,7 @@ impl crate::RaylibHandle {
         &mut self,
         id: MeshId,
     ) -> Result<&mut [[f32; 4]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         if mesh.inner.tangents.is_null() {
             return Ok(&mut []);
         }
@@ -238,10 +215,7 @@ impl crate::RaylibHandle {
     }
 
     pub fn get_mesh_colors(&self, id: MeshId) -> Result<&[[f32; 4]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get(id)?;
         if mesh.inner.colors.is_null() {
             return Ok(&[]);
         }
@@ -252,10 +226,7 @@ impl crate::RaylibHandle {
         &mut self,
         id: MeshId,
     ) -> Result<&mut [[f32; 4]], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         if mesh.inner.colors.is_null() {
             return Ok(&mut []);
         }
@@ -263,10 +234,7 @@ impl crate::RaylibHandle {
     }
 
     pub fn get_mesh_indices(&self, id: MeshId) -> Result<&[u16], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get(id)?;
         if mesh.inner.indices.is_null() {
             return Ok(&[]);
         }
@@ -276,10 +244,7 @@ impl crate::RaylibHandle {
     }
 
     pub fn get_mesh_indices_mut(&mut self, id: MeshId) -> Result<&mut [u16], crate::RaylibError> {
-        let mesh = self
-            .meshes
-            .get_mut(id)
-            .ok_or(crate::RaylibError::InvalidMeshId)?;
+        let mesh = self.meshes.get_mut(id)?;
         if mesh.inner.indices.is_null() {
             return Ok(&mut []);
         }

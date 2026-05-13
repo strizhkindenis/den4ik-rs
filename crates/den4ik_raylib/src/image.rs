@@ -6,6 +6,10 @@ pub struct Image {
 }
 
 impl crate::RaylibHandle {
+    pub fn remove_image(&mut self, id: ImageId) -> Result<(), crate::RaylibError> {
+        self.images.remove(id)
+    }
+
     pub fn load_image<P: AsRef<Path>>(&mut self, path: P) -> Result<ImageId, crate::RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
@@ -90,10 +94,7 @@ impl crate::RaylibHandle {
         &mut self,
         texture_id: crate::texture::Texture2DId,
     ) -> Result<ImageId, crate::RaylibError> {
-        let texture = self
-            .textures
-            .get(texture_id)
-            .ok_or(crate::RaylibError::InvalidTexture2DId)?;
+        let texture = self.textures.get(texture_id)?;
         let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
         Ok(self.images.add(Image { inner }))
     }
@@ -104,10 +105,7 @@ impl crate::RaylibHandle {
     }
 
     pub fn is_image_valid(&self, id: ImageId) -> Result<bool, crate::RaylibError> {
-        let image = self
-            .images
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidImageId)?;
+        let image = self.images.get(id)?;
         Ok(unsafe { crate::ffi::IsImageValid(image.inner) })
     }
 
@@ -116,10 +114,7 @@ impl crate::RaylibHandle {
         id: ImageId,
         path: P,
     ) -> Result<bool, crate::RaylibError> {
-        let image = self
-            .images
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidImageId)?;
+        let image = self.images.get(id)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
         let res = unsafe { crate::ffi::ExportImage(image.inner, path_c.as_ptr()) };
@@ -131,10 +126,7 @@ impl crate::RaylibHandle {
         id: ImageId,
         file_type: &str,
     ) -> Result<Vec<u8>, crate::RaylibError> {
-        let image = self
-            .images
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidImageId)?;
+        let image = self.images.get(id)?;
         let file_type_c =
             std::ffi::CString::new(file_type).map_err(|_| crate::RaylibError::PathNulError)?;
         let mut file_size: i32 = 0;
@@ -155,10 +147,7 @@ impl crate::RaylibHandle {
         id: ImageId,
         path: P,
     ) -> Result<bool, crate::RaylibError> {
-        let image = self
-            .images
-            .get(id)
-            .ok_or(crate::RaylibError::InvalidImageId)?;
+        let image = self.images.get(id)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| crate::RaylibError::PathNulError)?;
         let res = unsafe { crate::ffi::ExportImageAsCode(image.inner, path_c.as_ptr()) };
@@ -347,19 +336,19 @@ impl Container<Image, ImageId> for crate::RaylibHandle {
         self.images.add(item)
     }
 
-    fn remove(&mut self, id: ImageId) -> bool {
+    fn remove(&mut self, id: ImageId) -> Result<(), crate::RaylibError> {
         self.images.remove(id)
     }
 
-    fn take(&mut self, id: ImageId) -> Option<Image> {
+    fn take(&mut self, id: ImageId) -> Result<Image, crate::RaylibError> {
         self.images.take(id)
     }
 
-    fn get(&self, id: ImageId) -> Option<&Image> {
+    fn get(&self, id: ImageId) -> Result<&Image, crate::RaylibError> {
         self.images.get(id)
     }
 
-    fn get_mut(&mut self, id: ImageId) -> Option<&mut Image> {
+    fn get_mut(&mut self, id: ImageId) -> Result<&mut Image, crate::RaylibError> {
         self.images.get_mut(id)
     }
 }
