@@ -1,12 +1,9 @@
 use crate::{
-    allocator::{Allocator, AllocatorError},
+    allocator::Allocator,
     container::{Container, ContainerId},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeshConfigError {
-    TrianglePointMiscount,
-}
+
 
 pub struct MeshConfig {
     vertex_count: u32,
@@ -62,12 +59,12 @@ impl MeshConfigBuilder {
         self
     }
 
-    pub fn build(self) -> Result<MeshConfig, MeshConfigError> {
+    pub fn build(self) -> Result<MeshConfig, crate::RaylibError> {
         if self.config.indices_count.is_none() {
             if self.config.vertex_count % 3 != 0
                 || self.config.triangle_count * 3 != self.config.vertex_count
             {
-                return Err(MeshConfigError::TrianglePointMiscount);
+                return Err(crate::RaylibError::TrianglePointMiscount);
             }
         }
         Ok(self.config)
@@ -90,7 +87,7 @@ impl crate::RaylibHandle {
     pub fn load_mesh(
         &mut self,
         config: MeshConfig,
-    ) -> Result<MeshId, AllocatorError> {
+    ) -> Result<MeshId, crate::RaylibError> {
         let mut inner = crate::ffi::Mesh {
             vertexCount: config.vertex_count.try_into().unwrap(),
             triangleCount: config.triangle_count.try_into().unwrap(),
@@ -138,94 +135,94 @@ impl crate::RaylibHandle {
         }))
     }
 
-    pub fn upload_mesh(&mut self, id: MeshId, dynamic: bool) -> Option<()> {
-        let mesh = self.meshes.get_mut(id)?;
+    pub fn upload_mesh(&mut self, id: MeshId, dynamic: bool) -> Result<(), crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         unsafe { crate::ffi::UploadMesh(&mut mesh.inner, dynamic) }
-        Some(())
+        Ok(())
     }
 
-    pub fn get_mesh_vertices(&self, id: MeshId) -> Option<&[[f32; 3]]> {
-        let mesh = self.meshes.get(id)?;
-        Some(unsafe { std::slice::from_raw_parts(mesh.inner.vertices.cast(), mesh.vertex_count) })
+    pub fn get_mesh_vertices(&self, id: MeshId) -> Result<&[[f32; 3]], crate::RaylibError> {
+        let mesh = self.meshes.get(id).ok_or(crate::RaylibError::InvalidMeshId)?;
+        Ok(unsafe { std::slice::from_raw_parts(mesh.inner.vertices.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_vertices_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 3]]> {
-        let mesh = self.meshes.get_mut(id)?;
-        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.vertices.cast(), mesh.vertex_count) })
+    pub fn get_mesh_vertices_mut(&mut self, id: MeshId) -> Result<&mut [[f32; 3]], crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
+        Ok(unsafe { std::slice::from_raw_parts_mut(mesh.inner.vertices.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_texcoords(&self, id: MeshId) -> Option<&[[f32; 2]]> {
-        let mesh = self.meshes.get(id)?;
-        Some(unsafe { std::slice::from_raw_parts(mesh.inner.texcoords.cast(), mesh.vertex_count) })
+    pub fn get_mesh_texcoords(&self, id: MeshId) -> Result<&[[f32; 2]], crate::RaylibError> {
+        let mesh = self.meshes.get(id).ok_or(crate::RaylibError::InvalidMeshId)?;
+        Ok(unsafe { std::slice::from_raw_parts(mesh.inner.texcoords.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_texcoords_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 2]]> {
-        let mesh = self.meshes.get_mut(id)?;
-        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.texcoords.cast(), mesh.vertex_count) })
+    pub fn get_mesh_texcoords_mut(&mut self, id: MeshId) -> Result<&mut [[f32; 2]], crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
+        Ok(unsafe { std::slice::from_raw_parts_mut(mesh.inner.texcoords.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_normals(&self, id: MeshId) -> Option<&[[f32; 3]]> {
-        let mesh = self.meshes.get(id)?;
+    pub fn get_mesh_normals(&self, id: MeshId) -> Result<&[[f32; 3]], crate::RaylibError> {
+        let mesh = self.meshes.get(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.normals.is_null() {
-            return Some(&[]);
+            return Ok(&[]);
         }
-        Some(unsafe { std::slice::from_raw_parts(mesh.inner.normals.cast(), mesh.vertex_count) })
+        Ok(unsafe { std::slice::from_raw_parts(mesh.inner.normals.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_normals_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 3]]> {
-        let mesh = self.meshes.get_mut(id)?;
+    pub fn get_mesh_normals_mut(&mut self, id: MeshId) -> Result<&mut [[f32; 3]], crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.normals.is_null() {
-            return Some(&mut []);
+            return Ok(&mut []);
         }
-        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.normals.cast(), mesh.vertex_count) })
+        Ok(unsafe { std::slice::from_raw_parts_mut(mesh.inner.normals.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_tangents(&self, id: MeshId) -> Option<&[[f32; 4]]> {
-        let mesh = self.meshes.get(id)?;
+    pub fn get_mesh_tangents(&self, id: MeshId) -> Result<&[[f32; 4]], crate::RaylibError> {
+        let mesh = self.meshes.get(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.tangents.is_null() {
-            return Some(&[]);
+            return Ok(&[]);
         }
-        Some(unsafe { std::slice::from_raw_parts(mesh.inner.tangents.cast(), mesh.vertex_count) })
+        Ok(unsafe { std::slice::from_raw_parts(mesh.inner.tangents.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_tangents_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 4]]> {
-        let mesh = self.meshes.get_mut(id)?;
+    pub fn get_mesh_tangents_mut(&mut self, id: MeshId) -> Result<&mut [[f32; 4]], crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.tangents.is_null() {
-            return Some(&mut []);
+            return Ok(&mut []);
         }
-        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.tangents.cast(), mesh.vertex_count) })
+        Ok(unsafe { std::slice::from_raw_parts_mut(mesh.inner.tangents.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_colors(&self, id: MeshId) -> Option<&[[f32; 4]]> {
-        let mesh = self.meshes.get(id)?;
+    pub fn get_mesh_colors(&self, id: MeshId) -> Result<&[[f32; 4]], crate::RaylibError> {
+        let mesh = self.meshes.get(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.colors.is_null() {
-            return Some(&[]);
+            return Ok(&[]);
         }
-        Some(unsafe { std::slice::from_raw_parts(mesh.inner.colors.cast(), mesh.vertex_count) })
+        Ok(unsafe { std::slice::from_raw_parts(mesh.inner.colors.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_colors_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 4]]> {
-        let mesh = self.meshes.get_mut(id)?;
+    pub fn get_mesh_colors_mut(&mut self, id: MeshId) -> Result<&mut [[f32; 4]], crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.colors.is_null() {
-            return Some(&mut []);
+            return Ok(&mut []);
         }
-        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.colors.cast(), mesh.vertex_count) })
+        Ok(unsafe { std::slice::from_raw_parts_mut(mesh.inner.colors.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_mesh_indices(&self, id: MeshId) -> Option<&[u16]> {
-        let mesh = self.meshes.get(id)?;
+    pub fn get_mesh_indices(&self, id: MeshId) -> Result<&[u16], crate::RaylibError> {
+        let mesh = self.meshes.get(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.indices.is_null() {
-            return Some(&[]);
+            return Ok(&[]);
         }
-        Some(unsafe { std::slice::from_raw_parts(mesh.inner.indices.cast(), mesh.triangle_count * 3) })
+        Ok(unsafe { std::slice::from_raw_parts(mesh.inner.indices.cast(), mesh.triangle_count * 3) })
     }
 
-    pub fn get_mesh_indices_mut(&mut self, id: MeshId) -> Option<&mut [u16]> {
-        let mesh = self.meshes.get_mut(id)?;
+    pub fn get_mesh_indices_mut(&mut self, id: MeshId) -> Result<&mut [u16], crate::RaylibError> {
+        let mesh = self.meshes.get_mut(id).ok_or(crate::RaylibError::InvalidMeshId)?;
         if mesh.inner.indices.is_null() {
-            return Some(&mut []);
+            return Ok(&mut []);
         }
-        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.indices.cast(), mesh.triangle_count * 3) })
+        Ok(unsafe { std::slice::from_raw_parts_mut(mesh.inner.indices.cast(), mesh.triangle_count * 3) })
     }
 
     pub fn gen_mesh_plane(

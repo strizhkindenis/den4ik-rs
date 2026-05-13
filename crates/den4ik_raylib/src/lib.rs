@@ -18,11 +18,21 @@ pub trait Unloadable {
     fn unload(item: Self);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RaylibError {
     PathNulError,
     InvalidMeshId,
     InvalidMaterialId,
     InvalidTexture2DId,
+    InvalidImageId,
+    InvalidModelId,
+    InvalidRenderTextureId,
+    ExportToMemoryFailed,
+    EmptyModel,
+    TrianglePointMiscount,
+    AllocatorOOM,
+    AllocatorSizeTooBig,
+    AllocatorZeroSize,
 }
 
 pub struct Draw3DHandle<'l, 'h> {
@@ -181,11 +191,11 @@ impl RaylibHandle {
         material_idx: usize,
         map_type: i32,
         texture_id: texture::Texture2DId,
-    ) -> Option<()> {
-        let tex_inner = self.textures.get(texture_id)?.inner;
-        let mat = self.get_model_materials_mut(model_id)?.get_mut(material_idx)?;
+    ) -> Result<(), RaylibError> {
+        let tex_inner = self.textures.get(texture_id).ok_or(RaylibError::InvalidTexture2DId)?.inner;
+        let mat = self.get_model_materials_mut(model_id)?.get_mut(material_idx).ok_or(RaylibError::InvalidMaterialId)?;
         unsafe { crate::ffi::SetMaterialTexture(&mut mat.inner, map_type, tex_inner) }
-        Some(())
+        Ok(())
     }
 
     // Input & Camera - Enforcing Thread Safety

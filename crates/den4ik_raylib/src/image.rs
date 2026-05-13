@@ -1,12 +1,7 @@
 use crate::container::{Container, ContainerId};
 use std::path::Path;
 
-#[derive(Debug)]
-pub enum ImageError {
-    PathContainsNullByte,
-    ExportToMemoryFailed,
-    InvalidImageId,
-}
+
 
 pub struct Image {
     pub(crate) inner: crate::ffi::Image,
@@ -16,9 +11,9 @@ impl crate::RaylibHandle {
     pub fn load_image<P: AsRef<Path>>(
         &mut self,
         path: P,
-    ) -> Result<ImageId, ImageError> {
+    ) -> Result<ImageId, crate::RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
-            .map_err(|_| ImageError::PathContainsNullByte)?;
+            .map_err(|_| crate::RaylibError::PathNulError)?;
         let inner = unsafe { crate::ffi::LoadImage(path_c.as_ptr()) };
         Ok(self.images.add(Image { inner }))
     }
@@ -30,9 +25,9 @@ impl crate::RaylibHandle {
         height: u32,
         format: i32,
         header_size: u32,
-    ) -> Result<ImageId, ImageError> {
+    ) -> Result<ImageId, crate::RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
-            .map_err(|_| ImageError::PathContainsNullByte)?;
+            .map_err(|_| crate::RaylibError::PathNulError)?;
         let inner = unsafe {
             crate::ffi::LoadImageRaw(
                 path_c.as_ptr(),
@@ -49,9 +44,9 @@ impl crate::RaylibHandle {
         &mut self,
         path: P,
         frames: &mut u32,
-    ) -> Result<ImageId, ImageError> {
+    ) -> Result<ImageId, crate::RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
-            .map_err(|_| ImageError::PathContainsNullByte)?;
+            .map_err(|_| crate::RaylibError::PathNulError)?;
         let mut frames_i32: i32 = 0;
         let inner = unsafe { crate::ffi::LoadImageAnim(path_c.as_ptr(), &mut frames_i32) };
         *frames = frames_i32.try_into().unwrap();
@@ -63,9 +58,9 @@ impl crate::RaylibHandle {
         file_type: &str,
         file_data: &[u8],
         frames: &mut u32,
-    ) -> Result<ImageId, ImageError> {
+    ) -> Result<ImageId, crate::RaylibError> {
         let file_type_c =
-            std::ffi::CString::new(file_type).map_err(|_| ImageError::PathContainsNullByte)?;
+            std::ffi::CString::new(file_type).map_err(|_| crate::RaylibError::PathNulError)?;
         let mut frames_i32: i32 = 0;
         let inner = unsafe {
             crate::ffi::LoadImageAnimFromMemory(
@@ -83,9 +78,9 @@ impl crate::RaylibHandle {
         &mut self,
         file_type: &str,
         file_data: &[u8],
-    ) -> Result<ImageId, ImageError> {
+    ) -> Result<ImageId, crate::RaylibError> {
         let file_type_c =
-            std::ffi::CString::new(file_type).map_err(|_| ImageError::PathContainsNullByte)?;
+            std::ffi::CString::new(file_type).map_err(|_| crate::RaylibError::PathNulError)?;
         let inner = unsafe {
             crate::ffi::LoadImageFromMemory(
                 file_type_c.as_ptr(),
@@ -99,10 +94,10 @@ impl crate::RaylibHandle {
     pub fn load_image_from_texture(
         &mut self,
         texture_id: crate::texture::Texture2DId,
-    ) -> Option<ImageId> {
-        let texture = self.textures.get(texture_id)?;
+    ) -> Result<ImageId, crate::RaylibError> {
+        let texture = self.textures.get(texture_id).ok_or(crate::RaylibError::InvalidTexture2DId)?;
         let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
-        Some(self.images.add(Image { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 
     pub fn load_image_from_screen(&mut self) -> ImageId {
@@ -110,29 +105,29 @@ impl crate::RaylibHandle {
         self.images.add(Image { inner })
     }
 
-    pub fn is_image_valid(&self, id: ImageId) -> Option<bool> {
-        let image = self.images.get(id)?;
-        Some(unsafe { crate::ffi::IsImageValid(image.inner) })
+    pub fn is_image_valid(&self, id: ImageId) -> Result<bool, crate::RaylibError> {
+        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
+        Ok(unsafe { crate::ffi::IsImageValid(image.inner) })
     }
 
-    pub fn export_image<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, ImageError> {
-        let image = self.images.get(id).ok_or(ImageError::InvalidImageId)?;
+    pub fn export_image<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, crate::RaylibError> {
+        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
-            .map_err(|_| ImageError::PathContainsNullByte)?;
+            .map_err(|_| crate::RaylibError::PathNulError)?;
         let res = unsafe { crate::ffi::ExportImage(image.inner, path_c.as_ptr()) };
         Ok(res)
     }
 
-    pub fn export_image_to_memory(&self, id: ImageId, file_type: &str) -> Result<Vec<u8>, ImageError> {
-        let image = self.images.get(id).ok_or(ImageError::InvalidImageId)?;
+    pub fn export_image_to_memory(&self, id: ImageId, file_type: &str) -> Result<Vec<u8>, crate::RaylibError> {
+        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
         let file_type_c =
-            std::ffi::CString::new(file_type).map_err(|_| ImageError::PathContainsNullByte)?;
+            std::ffi::CString::new(file_type).map_err(|_| crate::RaylibError::PathNulError)?;
         let mut file_size: i32 = 0;
         let ptr = unsafe {
             crate::ffi::ExportImageToMemory(image.inner, file_type_c.as_ptr(), &mut file_size)
         };
         if ptr.is_null() {
-            return Err(ImageError::ExportToMemoryFailed);
+            return Err(crate::RaylibError::ExportToMemoryFailed);
         }
         let slice = unsafe { std::slice::from_raw_parts(ptr, file_size.try_into().unwrap()) };
         let vec = slice.to_vec();
@@ -140,10 +135,10 @@ impl crate::RaylibHandle {
         Ok(vec)
     }
 
-    pub fn export_image_as_code<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, ImageError> {
-        let image = self.images.get(id).ok_or(ImageError::InvalidImageId)?;
+    pub fn export_image_as_code<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, crate::RaylibError> {
+        let image = self.images.get(id).ok_or(crate::RaylibError::InvalidImageId)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
-            .map_err(|_| ImageError::PathContainsNullByte)?;
+            .map_err(|_| crate::RaylibError::PathNulError)?;
         let res = unsafe { crate::ffi::ExportImageAsCode(image.inner, path_c.as_ptr()) };
         Ok(res)
     }
@@ -303,8 +298,8 @@ impl crate::RaylibHandle {
         width: u32,
         height: u32,
         text: &str,
-    ) -> Result<ImageId, ImageError> {
-        let text_c = std::ffi::CString::new(text).map_err(|_| ImageError::PathContainsNullByte)?;
+    ) -> Result<ImageId, crate::RaylibError> {
+        let text_c = std::ffi::CString::new(text).map_err(|_| crate::RaylibError::PathNulError)?;
         let inner = unsafe {
             crate::ffi::GenImageText(
                 width.try_into().unwrap(),

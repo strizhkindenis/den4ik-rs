@@ -60,9 +60,9 @@ impl RaylibHandle {
         self.render_textures.add(RenderTexture2D { inner })
     }
 
-    pub fn is_render_texture_valid(&self, id: RenderTextureId) -> Option<bool> {
-        let texture = self.render_textures.get(id)?;
-        Some(unsafe { crate::ffi::IsRenderTextureValid(texture.inner) })
+    pub fn is_render_texture_valid(&self, id: RenderTextureId) -> Result<bool, RaylibError> {
+        let texture = self.render_textures.get(id).ok_or(RaylibError::InvalidRenderTextureId)?;
+        Ok(unsafe { crate::ffi::IsRenderTextureValid(texture.inner) })
     }
 
     pub fn load_texture<P: AsRef<Path>>(
@@ -78,20 +78,20 @@ impl RaylibHandle {
     pub fn load_texture_from_image(
         &mut self,
         image_id: ImageId,
-    ) -> Option<Texture2DId> {
-        let image = self.images.get(image_id)?;
+    ) -> Result<Texture2DId, RaylibError> {
+        let image = self.images.get(image_id).ok_or(RaylibError::InvalidImageId)?;
         let inner = unsafe { crate::ffi::LoadTextureFromImage(image.inner) };
-        Some(self.textures.add(Texture2D { inner }))
+        Ok(self.textures.add(Texture2D { inner }))
     }
 
     pub fn load_texture_cubemap(
         &mut self,
         image_id: ImageId,
         layout: i32,
-    ) -> Option<Texture2DId> {
-        let image = self.images.get(image_id)?;
+    ) -> Result<Texture2DId, RaylibError> {
+        let image = self.images.get(image_id).ok_or(RaylibError::InvalidImageId)?;
         let inner = unsafe { crate::ffi::LoadTextureCubemap(image.inner, layout) };
-        Some(self.textures.add(Texture2D { inner }))
+        Ok(self.textures.add(Texture2D { inner }))
     }
 
     pub fn is_texture_valid(&self, id: Texture2DId) -> Result<bool, RaylibError> {
