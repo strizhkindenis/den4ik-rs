@@ -33,19 +33,6 @@ pub struct RenderTexture2D {
     pub(crate) inner: crate::ffi::RenderTexture2D,
 }
 
-impl RenderTexture2D {
-    pub fn load(handle: &mut RaylibHandle, width: u32, height: u32) -> RenderTextureId {
-        let inner = unsafe {
-            crate::ffi::LoadRenderTexture(width.try_into().unwrap(), height.try_into().unwrap())
-        };
-        handle.add(Self { inner })
-    }
-
-    pub fn is_valid(&self) -> bool {
-        unsafe { crate::ffi::IsRenderTextureValid(self.inner) }
-    }
-}
-
 impl Unloadable for RenderTexture2D {
     fn unload(item: Self) {
         unsafe { crate::ffi::UnloadRenderTexture(item.inner) }
@@ -66,54 +53,70 @@ impl ContainerId for RenderTextureId {
 }
 
 impl RaylibHandle {
-	load_texture
-}
+    pub fn load_render_texture(&mut self, width: u32, height: u32) -> RenderTextureId {
+        let inner = unsafe {
+            crate::ffi::LoadRenderTexture(width.try_into().unwrap(), height.try_into().unwrap())
+        };
+        self.render_textures.add(RenderTexture2D { inner })
+    }
 
-impl Texture2D {
-    pub fn load<P: AsRef<Path>>(
-        handle: &mut RaylibHandle,
+    pub fn is_render_texture_valid(&self, id: RenderTextureId) -> Option<bool> {
+        let texture = self.render_textures.get(id)?;
+        Some(unsafe { crate::ffi::IsRenderTextureValid(texture.inner) })
+    }
+
+    pub fn load_texture<P: AsRef<Path>>(
+        &mut self,
         path: P,
     ) -> Result<Texture2DId, RaylibError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| RaylibError::PathNulError)?;
         let inner = unsafe { crate::ffi::LoadTexture(path_c.as_ptr()) };
-        Ok(handle.add(Self { inner }))
+        Ok(self.textures.add(Texture2D { inner }))
     }
 
-    pub fn load_from_image(
-        handle: &mut RaylibHandle,
+    pub fn load_texture_from_image(
+        &mut self,
         image_id: ImageId,
     ) -> Option<Texture2DId> {
-        let image = handle.images.get(image_id)?;
+        let image = self.images.get(image_id)?;
         let inner = unsafe { crate::ffi::LoadTextureFromImage(image.inner) };
-        Some(handle.add(Self { inner }))
+        Some(self.textures.add(Texture2D { inner }))
     }
 
-    pub fn load_cubemap(
-        handle: &mut RaylibHandle,
+    pub fn load_texture_cubemap(
+        &mut self,
         image_id: ImageId,
         layout: i32,
     ) -> Option<Texture2DId> {
-        let image = handle.images.get(image_id)?;
+        let image = self.images.get(image_id)?;
         let inner = unsafe { crate::ffi::LoadTextureCubemap(image.inner, layout) };
-        Some(handle.add(Self { inner }))
+        Some(self.textures.add(Texture2D { inner }))
     }
 
-    pub fn is_valid(&self) -> bool {
-        unsafe { crate::ffi::IsTextureValid(self.inner) }
+    pub fn is_texture_valid(&self, id: Texture2DId) -> Result<bool, RaylibError> {
+        let texture = self
+            .textures
+            .get(id)
+            .ok_or_else(|| RaylibError::InvalidTexture2DId)?;
+        Ok(unsafe { crate::ffi::IsTextureValid(texture.inner) })
     }
 
-    pub fn update(&mut self, pixels: &[u8]) {
-        unsafe { crate::ffi::UpdateTexture(self.inner, pixels.as_ptr() as *const std::ffi::c_void) }
+    pub fn update_texture(&mut self, id: Texture2DId, pixels: &[u8]) -> Result<(), RaylibError> {
+        let texture = self.textures.get_mut(id).ok_or_else(|| RaylibError::InvalidTexture2DId)?;
+        unsafe { crate::ffi::UpdateTexture(texture.inner, pixels.as_ptr() as *const std::ffi::c_void) }
+        Ok(())
     }
 
-    pub fn update_rec(&mut self, rec: crate::ffi::Rectangle, pixels: &[u8]) {
+    pub fn update_texture_rec(&mut self, id: Texture2DId, rec: crate::ffi::Rectangle, pixels: &[u8]) -> Result<(), RaylibError> {
+        let texture = self.textures.get_mut(id).ok_or_else(|| RaylibError::InvalidTexture2DId)?;
         unsafe {
             crate::ffi::UpdateTextureRec(
-                self.inner,
+                texture.inner,
                 rec,
                 pixels.as_ptr() as *const std::ffi::c_void,
             )
         }
+        Ok(())
     }
 }

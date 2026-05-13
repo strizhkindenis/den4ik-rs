@@ -1,5 +1,4 @@
 use crate::{
-	Handle,
     allocator::{Allocator, AllocatorError},
     container::{Container, ContainerId},
 };
@@ -82,11 +81,16 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn new(
-        handle: &mut crate::RaylibHandle,
+    pub(crate) fn into_inner(self) -> crate::ffi::Mesh {
+        self.inner
+    }
+}
+
+impl crate::RaylibHandle {
+    pub fn load_mesh(
+        &mut self,
         config: MeshConfig,
     ) -> Result<MeshId, AllocatorError> {
-        let allocator = Allocator::new(handle);
         let mut inner = crate::ffi::Mesh {
             vertexCount: config.vertex_count.try_into().unwrap(),
             triangleCount: config.triangle_count.try_into().unwrap(),
@@ -107,112 +111,125 @@ impl Mesh {
         };
         let vertex_count = usize::try_from(config.vertex_count).unwrap();
         let triangle_count = usize::try_from(config.triangle_count).unwrap();
-        inner.vertices = allocator.alloc_default_array(vertex_count)?;
-        inner.texcoords = allocator.alloc_default_array(vertex_count)?;
-        if config.has_normals {
-            inner.normals = allocator.alloc_default_array(vertex_count)?;
+        
+        {
+            let allocator = Allocator::new(self);
+            inner.vertices = allocator.alloc_default_array(vertex_count)?;
+            inner.texcoords = allocator.alloc_default_array(vertex_count)?;
+            if config.has_normals {
+                inner.normals = allocator.alloc_default_array(vertex_count)?;
+            }
+            if config.has_tangents {
+                inner.tangents = allocator.alloc_default_array(vertex_count)?;
+            }
+            if config.has_colors {
+                inner.colors = allocator.alloc_default_array(vertex_count)?;
+            }
+            if let Some(indices_count) = config.indices_count {
+                let indices_count = usize::try_from(indices_count).unwrap();
+                inner.indices = allocator.alloc_default_array(indices_count)?;
+            }
         }
-        if config.has_tangents {
-            inner.tangents = allocator.alloc_default_array(vertex_count)?;
-        }
-        if config.has_colors {
-            inner.colors = allocator.alloc_default_array(vertex_count)?;
-        }
-        if let Some(indices_count) = config.indices_count {
-            let indices_count = usize::try_from(indices_count).unwrap();
-            inner.indices = allocator.alloc_default_array(indices_count)?;
-        }
-        Ok(handle.add(Self {
+        
+        Ok(self.meshes.add(Mesh {
             inner,
             triangle_count,
             vertex_count,
         }))
     }
 
-    pub fn upload(&mut self, dynamic: bool) {
-        unsafe { crate::ffi::UploadMesh(&mut self.inner, dynamic) }
+    pub fn upload_mesh(&mut self, id: MeshId, dynamic: bool) -> Option<()> {
+        let mesh = self.meshes.get_mut(id)?;
+        unsafe { crate::ffi::UploadMesh(&mut mesh.inner, dynamic) }
+        Some(())
     }
 
-    pub(crate) fn into_inner(self) -> crate::ffi::Mesh {
-        self.inner
+    pub fn get_mesh_vertices(&self, id: MeshId) -> Option<&[[f32; 3]]> {
+        let mesh = self.meshes.get(id)?;
+        Some(unsafe { std::slice::from_raw_parts(mesh.inner.vertices.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_vertices(&self) -> &[[f32; 3]] {
-        unsafe { std::slice::from_raw_parts(self.inner.vertices.cast(), self.vertex_count) }
+    pub fn get_mesh_vertices_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 3]]> {
+        let mesh = self.meshes.get_mut(id)?;
+        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.vertices.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_vertices_mut(&mut self) -> &mut [[f32; 3]] {
-        unsafe { std::slice::from_raw_parts_mut(self.inner.vertices.cast(), self.vertex_count) }
+    pub fn get_mesh_texcoords(&self, id: MeshId) -> Option<&[[f32; 2]]> {
+        let mesh = self.meshes.get(id)?;
+        Some(unsafe { std::slice::from_raw_parts(mesh.inner.texcoords.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_texcoords(&self) -> &[[f32; 2]] {
-        unsafe { std::slice::from_raw_parts(self.inner.texcoords.cast(), self.vertex_count) }
+    pub fn get_mesh_texcoords_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 2]]> {
+        let mesh = self.meshes.get_mut(id)?;
+        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.texcoords.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_texcoords_mut(&mut self) -> &mut [[f32; 2]] {
-        unsafe { std::slice::from_raw_parts_mut(self.inner.texcoords.cast(), self.vertex_count) }
-    }
-
-    pub fn get_normals(&self) -> &[[f32; 3]] {
-        if self.inner.normals.is_null() {
-            return &[];
+    pub fn get_mesh_normals(&self, id: MeshId) -> Option<&[[f32; 3]]> {
+        let mesh = self.meshes.get(id)?;
+        if mesh.inner.normals.is_null() {
+            return Some(&[]);
         }
-        unsafe { std::slice::from_raw_parts(self.inner.normals.cast(), self.vertex_count) }
+        Some(unsafe { std::slice::from_raw_parts(mesh.inner.normals.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_normals_mut(&mut self) -> &mut [[f32; 3]] {
-        if self.inner.normals.is_null() {
-            return &mut [];
+    pub fn get_mesh_normals_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 3]]> {
+        let mesh = self.meshes.get_mut(id)?;
+        if mesh.inner.normals.is_null() {
+            return Some(&mut []);
         }
-        unsafe { std::slice::from_raw_parts_mut(self.inner.normals.cast(), self.vertex_count) }
+        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.normals.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_tangents(&self) -> &[[f32; 4]] {
-        if self.inner.tangents.is_null() {
-            return &[];
+    pub fn get_mesh_tangents(&self, id: MeshId) -> Option<&[[f32; 4]]> {
+        let mesh = self.meshes.get(id)?;
+        if mesh.inner.tangents.is_null() {
+            return Some(&[]);
         }
-        unsafe { std::slice::from_raw_parts(self.inner.tangents.cast(), self.vertex_count) }
+        Some(unsafe { std::slice::from_raw_parts(mesh.inner.tangents.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_tangents_mut(&mut self) -> &mut [[f32; 4]] {
-        if self.inner.tangents.is_null() {
-            return &mut [];
+    pub fn get_mesh_tangents_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 4]]> {
+        let mesh = self.meshes.get_mut(id)?;
+        if mesh.inner.tangents.is_null() {
+            return Some(&mut []);
         }
-        unsafe { std::slice::from_raw_parts_mut(self.inner.tangents.cast(), self.vertex_count) }
+        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.tangents.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_colors(&self) -> &[[f32; 4]] {
-        if self.inner.colors.is_null() {
-            return &[];
+    pub fn get_mesh_colors(&self, id: MeshId) -> Option<&[[f32; 4]]> {
+        let mesh = self.meshes.get(id)?;
+        if mesh.inner.colors.is_null() {
+            return Some(&[]);
         }
-        unsafe { std::slice::from_raw_parts(self.inner.colors.cast(), self.vertex_count) }
+        Some(unsafe { std::slice::from_raw_parts(mesh.inner.colors.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_colors_mut(&mut self) -> &mut [[f32; 4]] {
-        if self.inner.colors.is_null() {
-            return &mut [];
+    pub fn get_mesh_colors_mut(&mut self, id: MeshId) -> Option<&mut [[f32; 4]]> {
+        let mesh = self.meshes.get_mut(id)?;
+        if mesh.inner.colors.is_null() {
+            return Some(&mut []);
         }
-        unsafe { std::slice::from_raw_parts_mut(self.inner.colors.cast(), self.vertex_count) }
+        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.colors.cast(), mesh.vertex_count) })
     }
 
-    pub fn get_indices(&self) -> &[u16] {
-        if self.inner.indices.is_null() {
-            return &[];
+    pub fn get_mesh_indices(&self, id: MeshId) -> Option<&[u16]> {
+        let mesh = self.meshes.get(id)?;
+        if mesh.inner.indices.is_null() {
+            return Some(&[]);
         }
-        unsafe { std::slice::from_raw_parts(self.inner.indices.cast(), self.triangle_count * 3) }
+        Some(unsafe { std::slice::from_raw_parts(mesh.inner.indices.cast(), mesh.triangle_count * 3) })
     }
 
-    pub fn get_indices_mut(&mut self) -> &mut [u16] {
-        if self.inner.indices.is_null() {
-            return &mut [];
+    pub fn get_mesh_indices_mut(&mut self, id: MeshId) -> Option<&mut [u16]> {
+        let mesh = self.meshes.get_mut(id)?;
+        if mesh.inner.indices.is_null() {
+            return Some(&mut []);
         }
-        unsafe {
-            std::slice::from_raw_parts_mut(self.inner.indices.cast(), self.triangle_count * 3)
-        }
+        Some(unsafe { std::slice::from_raw_parts_mut(mesh.inner.indices.cast(), mesh.triangle_count * 3) })
     }
 
-    pub fn gen_plane(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_plane(
+        &mut self,
         width: f32,
         length: f32,
         res_x: u32,
@@ -226,31 +243,31 @@ impl Mesh {
                 res_z.try_into().unwrap(),
             )
         };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_cube(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_cube(
+        &mut self,
         width: f32,
         height: f32,
         length: f32,
     ) -> MeshId {
         let inner = unsafe { crate::ffi::GenMeshCube(width, height, length) };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_sphere(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_sphere(
+        &mut self,
         radius: f32,
         rings: u32,
         slices: u32,
@@ -262,16 +279,16 @@ impl Mesh {
                 slices.try_into().unwrap(),
             )
         };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_hemisphere(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_hemisphere(
+        &mut self,
         radius: f32,
         rings: u32,
         slices: u32,
@@ -283,32 +300,32 @@ impl Mesh {
                 slices.try_into().unwrap(),
             )
         };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_cylinder(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_cylinder(
+        &mut self,
         radius: f32,
         height: f32,
         slices: u32,
     ) -> MeshId {
         let inner =
             unsafe { crate::ffi::GenMeshCylinder(radius, height, slices.try_into().unwrap()) };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_torus(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_torus(
+        &mut self,
         radius: f32,
         size: f32,
         rad_seg: u32,
@@ -322,16 +339,16 @@ impl Mesh {
                 sides.try_into().unwrap(),
             )
         };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_knot(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_mesh_knot(
+        &mut self,
         radius: f32,
         size: f32,
         rad_seg: u32,
@@ -345,22 +362,22 @@ impl Mesh {
                 sides.try_into().unwrap(),
             )
         };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 
-    pub fn gen_poly(handle: &mut crate::RaylibHandle, sides: u32, radius: f32) -> MeshId {
+    pub fn gen_mesh_poly(&mut self, sides: u32, radius: f32) -> MeshId {
         let inner = unsafe { crate::ffi::GenMeshPoly(sides.try_into().unwrap(), radius) };
-        let m = Self {
+        let m = Mesh {
             inner,
             vertex_count: inner.vertexCount as usize,
             triangle_count: inner.triangleCount as usize,
         };
-        handle.add(m)
+        self.meshes.add(m)
     }
 }
 
@@ -380,27 +397,5 @@ impl ContainerId for MeshId {
 
     fn from_usize(value: usize) -> Self {
         Self(value)
-    }
-}
-
-impl Container<Mesh, MeshId> for Handle {
-    fn add(&mut self, item: Mesh) -> MeshId {
-        self.meshes.add(item)
-    }
-
-    fn remove(&mut self, id: MeshId) -> bool {
-        self.meshes.remove(id)
-    }
-
-    fn take(&mut self, id: MeshId) -> Option<Mesh> {
-        unsafe { self.meshes.take(id) }
-    }
-
-    fn get(&self, id: MeshId) -> Option<&Mesh> {
-        self.meshes.get(id)
-    }
-
-    fn get_mut(&mut self, id: MeshId) -> Option<&mut Mesh> {
-        self.meshes.get_mut(id)
     }
 }

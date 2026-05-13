@@ -183,8 +183,7 @@ impl RaylibHandle {
         texture_id: texture::Texture2DId,
     ) -> Option<()> {
         let tex_inner = self.textures.get(texture_id)?.inner;
-        let model = self.models.get_mut(model_id)?;
-        let mat = model.get_materials_mut().get_mut(material_idx)?;
+        let mat = self.get_model_materials_mut(model_id)?.get_mut(material_idx)?;
         unsafe { crate::ffi::SetMaterialTexture(&mut mat.inner, map_type, tex_inner) }
         Some(())
     }

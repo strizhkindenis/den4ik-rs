@@ -1,28 +1,30 @@
 use crate::container::{Container, ContainerId};
 use std::path::Path;
 
+#[derive(Debug)]
 pub enum ImageError {
     PathContainsNullByte,
     ExportToMemoryFailed,
+    InvalidImageId,
 }
 
 pub struct Image {
     pub(crate) inner: crate::ffi::Image,
 }
 
-impl Image {
-    pub fn load<P: AsRef<Path>>(
-        handle: &mut crate::RaylibHandle,
+impl crate::RaylibHandle {
+    pub fn load_image<P: AsRef<Path>>(
+        &mut self,
         path: P,
     ) -> Result<ImageId, ImageError> {
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ImageError::PathContainsNullByte)?;
         let inner = unsafe { crate::ffi::LoadImage(path_c.as_ptr()) };
-        Ok(handle.add(Self { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 
-    pub fn load_raw<P: AsRef<Path>>(
-        handle: &mut crate::RaylibHandle,
+    pub fn load_image_raw<P: AsRef<Path>>(
+        &mut self,
         path: P,
         width: u32,
         height: u32,
@@ -40,11 +42,11 @@ impl Image {
                 header_size.try_into().unwrap(),
             )
         };
-        Ok(handle.add(Self { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 
-    pub fn load_anim<P: AsRef<Path>>(
-        handle: &mut crate::RaylibHandle,
+    pub fn load_image_anim<P: AsRef<Path>>(
+        &mut self,
         path: P,
         frames: &mut u32,
     ) -> Result<ImageId, ImageError> {
@@ -53,11 +55,11 @@ impl Image {
         let mut frames_i32: i32 = 0;
         let inner = unsafe { crate::ffi::LoadImageAnim(path_c.as_ptr(), &mut frames_i32) };
         *frames = frames_i32.try_into().unwrap();
-        Ok(handle.add(Self { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 
-    pub fn load_anim_from_memory(
-        handle: &mut crate::RaylibHandle,
+    pub fn load_image_anim_from_memory(
+        &mut self,
         file_type: &str,
         file_data: &[u8],
         frames: &mut u32,
@@ -74,11 +76,11 @@ impl Image {
             )
         };
         *frames = frames_i32.try_into().unwrap();
-        Ok(handle.add(Self { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 
-    pub fn load_from_memory(
-        handle: &mut crate::RaylibHandle,
+    pub fn load_image_from_memory(
+        &mut self,
         file_type: &str,
         file_data: &[u8],
     ) -> Result<ImageId, ImageError> {
@@ -91,40 +93,43 @@ impl Image {
                 file_data.len().try_into().unwrap(),
             )
         };
-        Ok(handle.add(Self { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 
-    pub fn load_from_texture(
-        handle: &mut crate::RaylibHandle,
+    pub fn load_image_from_texture(
+        &mut self,
         texture_id: crate::texture::Texture2DId,
     ) -> Option<ImageId> {
-        let texture = handle.textures.get(texture_id)?;
+        let texture = self.textures.get(texture_id)?;
         let inner = unsafe { crate::ffi::LoadImageFromTexture(texture.inner) };
-        Some(handle.add(Self { inner }))
+        Some(self.images.add(Image { inner }))
     }
 
-    pub fn load_from_screen(handle: &mut crate::RaylibHandle) -> ImageId {
+    pub fn load_image_from_screen(&mut self) -> ImageId {
         let inner = unsafe { crate::ffi::LoadImageFromScreen() };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn is_valid(&self) -> bool {
-        unsafe { crate::ffi::IsImageValid(self.inner) }
+    pub fn is_image_valid(&self, id: ImageId) -> Option<bool> {
+        let image = self.images.get(id)?;
+        Some(unsafe { crate::ffi::IsImageValid(image.inner) })
     }
 
-    pub fn export<P: AsRef<Path>>(&self, path: P) -> Result<bool, ImageError> {
+    pub fn export_image<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, ImageError> {
+        let image = self.images.get(id).ok_or(ImageError::InvalidImageId)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ImageError::PathContainsNullByte)?;
-        let res = unsafe { crate::ffi::ExportImage(self.inner, path_c.as_ptr()) };
+        let res = unsafe { crate::ffi::ExportImage(image.inner, path_c.as_ptr()) };
         Ok(res)
     }
 
-    pub fn export_to_memory(&self, file_type: &str) -> Result<Vec<u8>, ImageError> {
+    pub fn export_image_to_memory(&self, id: ImageId, file_type: &str) -> Result<Vec<u8>, ImageError> {
+        let image = self.images.get(id).ok_or(ImageError::InvalidImageId)?;
         let file_type_c =
             std::ffi::CString::new(file_type).map_err(|_| ImageError::PathContainsNullByte)?;
         let mut file_size: i32 = 0;
         let ptr = unsafe {
-            crate::ffi::ExportImageToMemory(self.inner, file_type_c.as_ptr(), &mut file_size)
+            crate::ffi::ExportImageToMemory(image.inner, file_type_c.as_ptr(), &mut file_size)
         };
         if ptr.is_null() {
             return Err(ImageError::ExportToMemoryFailed);
@@ -135,15 +140,16 @@ impl Image {
         Ok(vec)
     }
 
-    pub fn export_as_code<P: AsRef<Path>>(&self, path: P) -> Result<bool, ImageError> {
+    pub fn export_image_as_code<P: AsRef<Path>>(&self, id: ImageId, path: P) -> Result<bool, ImageError> {
+        let image = self.images.get(id).ok_or(ImageError::InvalidImageId)?;
         let path_c = std::ffi::CString::new(path.as_ref().to_string_lossy().as_ref())
             .map_err(|_| ImageError::PathContainsNullByte)?;
-        let res = unsafe { crate::ffi::ExportImageAsCode(self.inner, path_c.as_ptr()) };
+        let res = unsafe { crate::ffi::ExportImageAsCode(image.inner, path_c.as_ptr()) };
         Ok(res)
     }
 
-    pub fn gen_color(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_color(
+        &mut self,
         width: u32,
         height: u32,
         color: impl crate::color::ToRlColor,
@@ -155,11 +161,11 @@ impl Image {
                 color.to_rl_color(),
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_gradient_linear(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_gradient_linear(
+        &mut self,
         width: u32,
         height: u32,
         direction: i32,
@@ -175,11 +181,11 @@ impl Image {
                 end.to_rl_color(),
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_gradient_radial(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_gradient_radial(
+        &mut self,
         width: u32,
         height: u32,
         density: f32,
@@ -195,11 +201,11 @@ impl Image {
                 outer_color.to_rl_color(),
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_gradient_square(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_gradient_square(
+        &mut self,
         width: u32,
         height: u32,
         density: f32,
@@ -215,11 +221,11 @@ impl Image {
                 outer_color.to_rl_color(),
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_checked(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_checked(
+        &mut self,
         width: u32,
         height: u32,
         checks_x: u32,
@@ -237,11 +243,11 @@ impl Image {
                 col2.to_rl_color(),
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_white_noise(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_white_noise(
+        &mut self,
         width: u32,
         height: u32,
         factor: f32,
@@ -253,11 +259,11 @@ impl Image {
                 factor,
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_perlin_noise(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_perlin_noise(
+        &mut self,
         width: u32,
         height: u32,
         offset_x: i32,
@@ -273,11 +279,11 @@ impl Image {
                 scale,
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_cellular(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_cellular(
+        &mut self,
         width: u32,
         height: u32,
         tile_size: u32,
@@ -289,11 +295,11 @@ impl Image {
                 tile_size.try_into().unwrap(),
             )
         };
-        handle.add(Self { inner })
+        self.images.add(Image { inner })
     }
 
-    pub fn gen_text(
-        handle: &mut crate::RaylibHandle,
+    pub fn gen_image_text(
+        &mut self,
         width: u32,
         height: u32,
         text: &str,
@@ -306,7 +312,7 @@ impl Image {
                 text_c.as_ptr(),
             )
         };
-        Ok(handle.add(Self { inner }))
+        Ok(self.images.add(Image { inner }))
     }
 }
 
@@ -338,7 +344,7 @@ impl Container<Image, ImageId> for crate::RaylibHandle {
         self.images.remove(id)
     }
 
-    unsafe fn take(&mut self, id: ImageId) -> Option<Image> {
+    fn take(&mut self, id: ImageId) -> Option<Image> {
         unsafe { self.images.take(id) }
     }
 
